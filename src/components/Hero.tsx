@@ -1,4 +1,5 @@
 import { Sparkles, Zap, Shield } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import GlassesIcon from "./GlassesIcon";
 
@@ -18,10 +19,12 @@ const Hero = () => {
         Inteligência artificial analisa seu rosto e recomenda os melhores modelos e cores de óculos ideais para você
       </p>
 
-      <Button variant="hero" className="mb-12 animate-pulse-glow">
-        <Sparkles className="w-5 h-5" />
-        Começar Análise Gratuita
-      </Button>
+      <Link to="/analyze">
+        <Button variant="hero" className="mb-12 animate-pulse-glow">
+          <Sparkles className="w-5 h-5" />
+          Começar Análise Gratuita
+        </Button>
+      </Link>
 
       <div className="flex flex-wrap justify-center gap-8 md:gap-12">
         <TrustBadge icon={<Shield className="w-5 h-5" />} title="100%" subtitle="Grátis" />

@@ -14,7 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      face_analyses: {
+        Row: {
+          created_at: string
+          face_shape: string | null
+          id: string
+          image_url: string
+          recommendations: Json | null
+          skin_tone: string | null
+        }
+        Insert: {
+          created_at?: string
+          face_shape?: string | null
+          id?: string
+          image_url: string
+          recommendations?: Json | null
+          skin_tone?: string | null
+        }
+        Update: {
+          created_at?: string
+          face_shape?: string | null
+          id?: string
+          image_url?: string
+          recommendations?: Json | null
+          skin_tone?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
