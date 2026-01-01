@@ -1,4 +1,5 @@
 import { Camera, Brain, CheckCircle } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 const steps = [
@@ -37,9 +38,11 @@ const Steps = () => {
         </div>
 
         <div className="text-center">
-          <Button variant="cta">
-            Experimentar Agora
-          </Button>
+          <Link to="/analyze">
+            <Button variant="cta">
+              Experimentar Agora
+            </Button>
+          </Link>
         </div>
       </div>
     </section>
