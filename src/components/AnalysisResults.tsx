@@ -1,7 +1,6 @@
 import { User, Palette, Star, ArrowLeft, Glasses } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AnalysisResult } from "./PhotoUpload";
-import { findGlassesImage } from "./GlassesCatalog";
 
 interface AnalysisResultsProps {
   analysis: AnalysisResult;
@@ -79,8 +78,6 @@ const RecommendationCard = ({
   recommendation: AnalysisResult["recommendations"][0];
   rank: number;
 }) => {
-  const glassesImage = findGlassesImage(recommendation.style);
-  
   const getScoreColor = (score: number) => {
     if (score >= 90) return "text-green-400";
     if (score >= 75) return "text-yellow-400";
@@ -89,51 +86,36 @@ const RecommendationCard = ({
 
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in" style={{ animationDelay: `${rank * 100}ms` }}>
-      <div className="flex gap-4">
-        {/* Glasses Image */}
-        {glassesImage && (
-          <div className="w-24 h-24 shrink-0 bg-white rounded-lg overflow-hidden">
-            <img
-              src={glassesImage}
-              alt={recommendation.style}
-              className="w-full h-full object-cover"
-            />
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div className="flex items-center gap-3">
+          <div className="step-gradient w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
+            <Glasses className="w-5 h-5 text-primary-foreground" />
           </div>
-        )}
-        
-        <div className="flex-1">
-          <div className="flex items-start justify-between gap-4 mb-2">
-            <div className="flex items-center gap-3">
-              {!glassesImage && (
-                <div className="step-gradient w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                  <Glasses className="w-5 h-5 text-primary-foreground" />
-                </div>
-              )}
-              <h4 className="font-semibold text-lg">{recommendation.style}</h4>
-            </div>
-            <div className="flex items-center gap-1">
-              <Star className="w-4 h-4 text-primary fill-primary" />
-              <span className={`font-bold ${getScoreColor(recommendation.compatibilityScore)}`}>
-                {recommendation.compatibilityScore}%
-              </span>
-            </div>
-          </div>
-
-          <p className="text-muted-foreground text-sm leading-relaxed mb-3">
-            {recommendation.reason}
-          </p>
-
-          <div className="flex flex-wrap gap-2">
-            {recommendation.colors.map((color, idx) => (
-              <span
-                key={idx}
-                className="px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm"
-              >
-                {color}
-              </span>
-            ))}
+          <div>
+            <h4 className="font-semibold text-lg">{recommendation.style}</h4>
           </div>
         </div>
+        <div className="flex items-center gap-1">
+          <Star className="w-4 h-4 text-primary fill-primary" />
+          <span className={`font-bold ${getScoreColor(recommendation.compatibilityScore)}`}>
+            {recommendation.compatibilityScore}%
+          </span>
+        </div>
+      </div>
+
+      <p className="text-muted-foreground text-sm leading-relaxed mb-3">
+        {recommendation.reason}
+      </p>
+
+      <div className="flex flex-wrap gap-2">
+        {recommendation.colors.map((color, idx) => (
+          <span
+            key={idx}
+            className="px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm"
+          >
+            {color}
+          </span>
+        ))}
       </div>
     </div>
   );

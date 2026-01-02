@@ -5,20 +5,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Validate that URL is from our Supabase storage
-function isValidSupabaseStorageUrl(url: string): boolean {
-  try {
-    const parsedUrl = new URL(url);
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    if (!supabaseUrl) return false;
-    
-    const expectedHost = new URL(supabaseUrl).host;
-    return parsedUrl.host === expectedHost && parsedUrl.pathname.includes("/storage/");
-  } catch {
-    return false;
-  }
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -28,17 +14,9 @@ serve(async (req) => {
   try {
     const { imageUrl } = await req.json();
     
-    if (!imageUrl || typeof imageUrl !== "string") {
+    if (!imageUrl) {
       return new Response(
-        JSON.stringify({ error: "Valid image URL is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Validate URL is from our Supabase storage
-    if (!isValidSupabaseStorageUrl(imageUrl)) {
-      return new Response(
-        JSON.stringify({ error: "Invalid image source" }),
+        JSON.stringify({ error: "Image URL is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -48,7 +26,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log("Starting face analysis");
+    console.log("Analyzing face from image:", imageUrl);
 
     const systemPrompt = `Você é um especialista em análise facial e recomendação de óculos. Analise a foto do rosto e forneça:
 
@@ -106,7 +84,8 @@ Responda em JSON com esta estrutura exata:
     });
 
     if (!response.ok) {
-      console.error("AI gateway error:", response.status);
+      const errorText = await response.text();
+      console.error("AI gateway error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -125,7 +104,7 @@ Responda em JSON com esta estrutura exata:
     }
 
     const data = await response.json();
-    console.log("AI response received successfully");
+    console.log("AI response received");
     
     const content = data.choices?.[0]?.message?.content;
     
@@ -140,7 +119,7 @@ Responda em JSON com esta estrutura exata:
       const cleanContent = content.replace(/```json\n?|\n?```/g, "").trim();
       analysisResult = JSON.parse(cleanContent);
     } catch (parseError) {
-      console.error("Failed to parse AI response");
+      console.error("Failed to parse AI response:", content);
       throw new Error("Failed to parse analysis result");
     }
 
@@ -150,7 +129,7 @@ Responda em JSON com esta estrutura exata:
     );
 
   } catch (error) {
-    console.error("Error in analyze-face function");
+    console.error("Error in analyze-face function:", error);
     const errorMessage = error instanceof Error ? error.message : "Erro ao analisar a foto";
     return new Response(
       JSON.stringify({ error: errorMessage }),

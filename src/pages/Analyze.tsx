@@ -4,12 +4,9 @@ import { ArrowLeft } from "lucide-react";
 import GlassesIcon from "@/components/GlassesIcon";
 import PhotoUpload, { AnalysisResult } from "@/components/PhotoUpload";
 import AnalysisResults from "@/components/AnalysisResults";
-import LanguageSelector from "@/components/LanguageSelector";
-import { useLanguage } from "@/contexts/LanguageContext";
 
 const Analyze = () => {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const { t } = useLanguage();
 
   const handleAnalysisComplete = (analysis: AnalysisResult) => {
     setAnalysisResult(analysis);
@@ -29,23 +26,23 @@ const Analyze = () => {
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span className="hidden sm:inline">{t("newAnalysis").split(" ")[0]}</span>
+            <span>Voltar</span>
           </Link>
           <Link to="/" className="flex items-center gap-2">
             <GlassesIcon className="w-8 h-8" />
             <span className="font-semibold">Eyewear AI</span>
           </Link>
-          <LanguageSelector />
         </div>
 
         {!analysisResult ? (
           <>
             <div className="text-center mb-10">
               <h1 className="text-3xl md:text-4xl font-bold mb-4">
-                {t("faceAnalysis").split(" ")[0]} <span className="gradient-text">{t("faceAnalysis").split(" ")[1]}</span>
+                Análise <span className="gradient-text">Facial</span>
               </h1>
               <p className="text-muted-foreground max-w-md mx-auto">
-                {t("uploadPhotoToStart")}
+                Tire uma foto nítida do seu rosto de frente para recebermos as melhores
+                recomendações de óculos
               </p>
             </div>
 
@@ -53,7 +50,7 @@ const Analyze = () => {
 
             <div className="mt-8 text-center">
               <p className="text-muted-foreground text-sm">
-                📸 {t("uploadPhotoToStart").includes("segura") ? "Suas fotos são processadas de forma segura e não são armazenadas" : "Your photos are processed securely and are not stored"}
+                📸 Suas fotos são processadas de forma segura e não são armazenadas
               </p>
             </div>
           </>
