@@ -81,12 +81,16 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
         throw new Error("Erro ao fazer upload da foto");
       }
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
+      // Get signed URL (private bucket)
+      const { data: urlData, error: signedError } = await supabase.storage
         .from("face-photos")
-        .getPublicUrl(fileName);
+        .createSignedUrl(fileName, 300); // 5 minutes expiry
 
-      const imageUrl = urlData.publicUrl;
+      if (signedError || !urlData?.signedUrl) {
+        throw new Error("Erro ao gerar URL segura");
+      }
+
+      const imageUrl = urlData.signedUrl;
       
       setUploadProgress("Analisando seu rosto com IA...");
 
