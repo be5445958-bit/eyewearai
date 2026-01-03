@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Validate that URL is from our Supabase storage
+// Validate that URL is from our Supabase storage (including signed URLs)
 function isValidSupabaseStorageUrl(url: string): boolean {
   try {
     const parsedUrl = new URL(url);
@@ -13,7 +13,11 @@ function isValidSupabaseStorageUrl(url: string): boolean {
     if (!supabaseUrl) return false;
     
     const expectedHost = new URL(supabaseUrl).host;
-    return parsedUrl.host === expectedHost && parsedUrl.pathname.includes("/storage/");
+    // Check if it's from our Supabase host and is a storage path
+    const isValidHost = parsedUrl.host === expectedHost;
+    const isStoragePath = parsedUrl.pathname.includes("/storage/") || 
+                          parsedUrl.pathname.includes("/object/");
+    return isValidHost && isStoragePath;
   } catch {
     return false;
   }
