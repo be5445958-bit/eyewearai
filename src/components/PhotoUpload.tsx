@@ -66,49 +66,37 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
       const blob = await response.blob();
       
       // Generate unique filename
-      const fileName = `face-${Date.now()}.jpg`;
-      
+      const ext = (blob.type || "image/jpeg").split("/")[1] || "jpg";
+      const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
+      const fileName = `face-${crypto.randomUUID()}.${safeExt}`;
+
       setUploadProgress("Enviando foto...");
-      
-      // Upload to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
+
+      // Upload to Storage
+      const { error: uploadError } = await supabase.storage
         .from("face-photos")
         .upload(fileName, blob, {
-          contentType: "image/jpeg",
+          contentType: blob.type || "image/jpeg",
         });
 
       if (uploadError) {
         throw new Error("Erro ao fazer upload da foto");
       }
 
-      // Get signed URL (private bucket)
-      const { data: urlData, error: signedError } = await supabase.storage
-        .from("face-photos")
-        .createSignedUrl(fileName, 300); // 5 minutes expiry
-
-      if (signedError || !urlData?.signedUrl) {
-        throw new Error("Erro ao gerar URL segura");
-      }
-
-      const imageUrl = urlData.signedUrl;
-      
       setUploadProgress("Analisando seu rosto com IA...");
 
-      // Call the analysis edge function
+      // Call the analysis backend function (it will create a signed URL and cleanup)
       const { data, error } = await supabase.functions.invoke("analyze-face", {
-        body: { imageUrl },
+        body: { storagePath: fileName },
       });
 
       if (error) {
         throw new Error(error.message || "Erro na análise");
       }
 
-      if (data.error) {
+      if (data?.error) {
         throw new Error(data.error);
       }
-
-      // Clean up - delete the uploaded image
-      await supabase.storage.from("face-photos").remove([fileName]);
 
       onAnalysisComplete(data.analysis);
       
