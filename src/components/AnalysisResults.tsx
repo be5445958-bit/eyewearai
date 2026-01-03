@@ -2,6 +2,7 @@ import { User, Palette, Star, ArrowLeft, Glasses } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AnalysisResult } from "./PhotoUpload";
 import { findGlassesImage } from "./GlassesCatalog";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface AnalysisResultsProps {
   analysis: AnalysisResult;
@@ -9,6 +10,8 @@ interface AnalysisResultsProps {
 }
 
 const AnalysisResults = ({ analysis, onReset }: AnalysisResultsProps) => {
+  const { t } = useLanguage();
+
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-8">
       <Button
@@ -17,11 +20,11 @@ const AnalysisResults = ({ analysis, onReset }: AnalysisResultsProps) => {
         className="mb-6 text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
-        Nova Análise
+        {t("newAnalysis")}
       </Button>
 
       <h2 className="text-3xl font-bold mb-8 text-center">
-        Seus <span className="gradient-text">Resultados</span>
+        {t("your")} <span className="gradient-text">{t("results")}</span>
       </h2>
 
       {/* Face Info Cards */}
@@ -31,7 +34,7 @@ const AnalysisResults = ({ analysis, onReset }: AnalysisResultsProps) => {
             <User className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-semibold text-lg mb-1">Formato do Rosto</h3>
+            <h3 className="font-semibold text-lg mb-1">{t("faceShape")}</h3>
             <p className="text-primary font-medium text-xl">{analysis.faceShape}</p>
           </div>
         </div>
@@ -41,20 +44,20 @@ const AnalysisResults = ({ analysis, onReset }: AnalysisResultsProps) => {
             <Palette className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-semibold text-lg mb-1">Tom de Pele</h3>
+            <h3 className="font-semibold text-lg mb-1">{t("skinTone")}</h3>
             <p className="text-primary font-medium text-xl">{analysis.skinTone}</p>
           </div>
         </div>
 
         <div className="glass-card rounded-xl p-5">
-          <h3 className="font-semibold text-lg mb-2">Características Faciais</h3>
+          <h3 className="font-semibold text-lg mb-2">{t("facialFeatures")}</h3>
           <p className="text-muted-foreground leading-relaxed">{analysis.facialFeatures}</p>
         </div>
       </div>
 
       {/* Recommendations */}
       <h3 className="text-2xl font-bold mb-6">
-        Óculos <span className="gradient-text">Recomendados</span>
+        <span className="gradient-text">{t("recommendedGlasses")}</span>
       </h3>
 
       <div className="space-y-4">
@@ -65,7 +68,7 @@ const AnalysisResults = ({ analysis, onReset }: AnalysisResultsProps) => {
 
       <div className="text-center mt-10">
         <Button variant="cta" onClick={onReset}>
-          Fazer Nova Análise
+          {t("makeNewAnalysis")}
         </Button>
       </div>
     </div>
