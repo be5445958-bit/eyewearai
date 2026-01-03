@@ -1,26 +1,18 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.89.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Validate that URL is from our Supabase storage (including signed URLs)
-function isValidSupabaseStorageUrl(url: string): boolean {
-  try {
-    const parsedUrl = new URL(url);
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    if (!supabaseUrl) return false;
-    
-    const expectedHost = new URL(supabaseUrl).host;
-    // Check if it's from our Supabase host and is a storage path
-    const isValidHost = parsedUrl.host === expectedHost;
-    const isStoragePath = parsedUrl.pathname.includes("/storage/") || 
-                          parsedUrl.pathname.includes("/object/");
-    return isValidHost && isStoragePath;
-  } catch {
-    return false;
-  }
+function isSafeStoragePath(path: string): boolean {
+  // Prevent traversal and weird characters
+  if (path.length < 1 || path.length > 200) return false;
+  if (path.includes("..") || path.startsWith("/") || path.includes("\\")) return false;
+  // Restrict to our generated naming scheme
+  return /^face-[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp)$/i.test(path);
 }
 
 serve(async (req) => {
@@ -30,29 +22,45 @@ serve(async (req) => {
   }
 
   try {
-    const { imageUrl } = await req.json();
-    
-    if (!imageUrl || typeof imageUrl !== "string") {
-      return new Response(
-        JSON.stringify({ error: "Valid image URL is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const body = await req.json().catch(() => ({}));
+    const storagePath = body?.storagePath;
 
-    // Validate URL is from our Supabase storage
-    if (!isValidSupabaseStorageUrl(imageUrl)) {
+    if (!storagePath || typeof storagePath !== "string" || !isSafeStoragePath(storagePath)) {
       return new Response(
-        JSON.stringify({ error: "Invalid image source" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Caminho de arquivo inválido" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Backend storage credentials are not configured");
     }
 
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    });
+
     console.log("Starting face analysis");
+
+    // Create a signed URL from the backend (avoids client-side 404/permission issues)
+    const { data: signed, error: signErr } = await supabase.storage
+      .from("face-photos")
+      .createSignedUrl(storagePath, 300);
+
+    if (signErr || !signed?.signedUrl) {
+      console.error("Failed to sign URL", signErr);
+      return new Response(
+        JSON.stringify({ error: "Erro ao gerar URL segura" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const imageUrl = signed.signedUrl;
 
     const systemPrompt = `Você é um especialista em análise facial e recomendação de óculos. Analise a foto do rosto e forneça:
 
@@ -97,42 +105,40 @@ Responda em JSON com esta estrutura exata:
             content: [
               {
                 type: "text",
-                text: "Analise esta foto do rosto e forneça recomendações de óculos personalizadas. Responda apenas com o JSON, sem markdown."
+                text: "Analise esta foto do rosto e forneça recomendações de óculos personalizadas. Responda apenas com o JSON, sem markdown.",
               },
               {
                 type: "image_url",
-                image_url: { url: imageUrl }
-              }
-            ]
-          }
+                image_url: { url: imageUrl },
+              },
+            ],
+          },
         ],
       }),
     });
 
     if (!response.ok) {
       console.error("AI gateway error:", response.status);
-      
+
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Muitas requisições. Tente novamente em alguns segundos." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
       if (response.status === 402) {
         return new Response(
           JSON.stringify({ error: "Créditos insuficientes. Por favor, adicione créditos à sua conta." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      
+
       throw new Error(`AI gateway error: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log("AI response received successfully");
-    
     const content = data.choices?.[0]?.message?.content;
-    
+
     if (!content) {
       throw new Error("No content in AI response");
     }
@@ -140,25 +146,26 @@ Responda em JSON com esta estrutura exata:
     // Parse the JSON from the response
     let analysisResult;
     try {
-      // Remove any markdown code blocks if present
-      const cleanContent = content.replace(/```json\n?|\n?```/g, "").trim();
+      const cleanContent = String(content).replace(/```json\n?|\n?```/g, "").trim();
       analysisResult = JSON.parse(cleanContent);
     } catch (parseError) {
       console.error("Failed to parse AI response");
       throw new Error("Failed to parse analysis result");
+    } finally {
+      // Best-effort cleanup
+      await supabase.storage.from("face-photos").remove([storagePath]).catch(() => undefined);
     }
 
     return new Response(
       JSON.stringify({ success: true, analysis: analysisResult }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-
   } catch (error) {
-    console.error("Error in analyze-face function");
+    console.error("Error in analyze-face function", error);
     const errorMessage = error instanceof Error ? error.message : "Erro ao analisar a foto";
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
