@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 export type Language = "pt" | "en" | "es";
 
@@ -226,6 +226,11 @@ export const translations: Translations = {
     en: "Make New Analysis",
     es: "Hacer Nuevo Análisis",
   },
+  your: {
+    pt: "Seus",
+    en: "Your",
+    es: "Tus",
+  },
   // Analyze Page
   faceAnalysis: {
     pt: "Análise Facial",
@@ -243,6 +248,108 @@ export const translations: Translations = {
     en: "All rights reserved.",
     es: "Todos los derechos reservados.",
   },
+  poweredByAI: {
+    pt: "Powered by IA Avançada",
+    en: "Powered by Advanced AI",
+    es: "Impulsado por IA Avanzada",
+  },
+  // Features
+  smartFacialAnalysis: {
+    pt: "Análise Facial Inteligente",
+    en: "Smart Facial Analysis",
+    es: "Análisis Facial Inteligente",
+  },
+  smartFacialAnalysisDesc: {
+    pt: "IA avançada analisa formato do rosto, tom de pele e características únicas",
+    en: "Advanced AI analyzes face shape, skin tone and unique features",
+    es: "IA avanzada analiza forma del rostro, tono de piel y características únicas",
+  },
+  personalizedRecommendations: {
+    pt: "Recomendações Personalizadas",
+    en: "Personalized Recommendations",
+    es: "Recomendaciones Personalizadas",
+  },
+  personalizedRecommendationsDesc: {
+    pt: "Sugestões precisas de modelos e cores ideais para você",
+    en: "Precise suggestions of ideal styles and colors for you",
+    es: "Sugerencias precisas de modelos y colores ideales para ti",
+  },
+  completeCatalog: {
+    pt: "Catálogo Completo",
+    en: "Complete Catalog",
+    es: "Catálogo Completo",
+  },
+  completeCatalogDesc: {
+    pt: "Diversos estilos: aviador, wayfarer, redondo, e muito mais",
+    en: "Various styles: aviator, wayfarer, round, and more",
+    es: "Diversos estilos: aviador, wayfarer, redondo, y mucho más",
+  },
+  compatibilityScore: {
+    pt: "Pontuação de Compatibilidade",
+    en: "Compatibility Score",
+    es: "Puntuación de Compatibilidad",
+  },
+  compatibilityScoreDesc: {
+    pt: "Score de match para cada modelo recomendado",
+    en: "Match score for each recommended style",
+    es: "Puntuación de match para cada modelo recomendado",
+  },
+  analysisHistory: {
+    pt: "Histórico de Análises",
+    en: "Analysis History",
+    es: "Historial de Análisis",
+  },
+  analysisHistoryDesc: {
+    pt: "Acesse suas análises anteriores a qualquer momento",
+    en: "Access your previous analyses anytime",
+    es: "Accede a tus análisis anteriores en cualquier momento",
+  },
+  modelComparison: {
+    pt: "Comparação de Modelos",
+    en: "Model Comparison",
+    es: "Comparación de Modelos",
+  },
+  modelComparisonDesc: {
+    pt: "Compare diferentes estilos lado a lado",
+    en: "Compare different styles side by side",
+    es: "Compara diferentes estilos lado a lado",
+  },
+  cuttingEdgeTech: {
+    pt: "Tecnologia de ponta para recomendações precisas",
+    en: "Cutting-edge technology for precise recommendations",
+    es: "Tecnología de punta para recomendaciones precisas",
+  },
+  // Steps
+  simpleIn3Steps: {
+    pt: "Simples em 3 Passos",
+    en: "Simple in 3 Steps",
+    es: "Simple en 3 Pasos",
+  },
+  step1DescFull: {
+    pt: "Faça upload de uma foto nítida do seu rosto de frente",
+    en: "Upload a clear frontal photo of your face",
+    es: "Sube una foto nítida de tu rostro de frente",
+  },
+  step2DescFull: {
+    pt: "Nossa inteligência artificial analisa formato do rosto, tom de pele e características faciais",
+    en: "Our AI analyzes face shape, skin tone and facial features",
+    es: "Nuestra IA analiza forma del rostro, tono de piel y características faciales",
+  },
+  receiveRecommendations: {
+    pt: "Receba Recomendações",
+    en: "Get Recommendations",
+    es: "Recibe Recomendaciones",
+  },
+  step3DescFull: {
+    pt: "Veja os melhores modelos e cores de óculos para você com explicações detalhadas",
+    en: "See the best styles and colors for you with detailed explanations",
+    es: "Ve los mejores modelos y colores de gafas para ti con explicaciones detalladas",
+  },
+  tryNow: {
+    pt: "Experimentar Agora",
+    en: "Try Now",
+    es: "Probar Ahora",
+  },
 };
 
 interface LanguageContextType {
@@ -254,7 +361,14 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguage] = useState<Language>("pt");
+  const [language, setLanguage] = useState<Language>(() => {
+    const stored = localStorage.getItem("language");
+    return (stored as Language) || "pt";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("language", language);
+  }, [language]);
 
   const t = (key: string): string => {
     return translations[key]?.[language] || key;

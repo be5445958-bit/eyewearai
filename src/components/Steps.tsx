@@ -1,34 +1,37 @@
 import { Camera, Brain, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-
-const steps = [
-  {
-    number: 1,
-    icon: Camera,
-    title: "Tire uma Foto",
-    description: "Faça upload de uma foto nítida do seu rosto de frente",
-  },
-  {
-    number: 2,
-    icon: Brain,
-    title: "IA Analisa",
-    description: "Nossa inteligência artificial analisa formato do rosto, tom de pele e características faciais",
-  },
-  {
-    number: 3,
-    icon: CheckCircle,
-    title: "Receba Recomendações",
-    description: "Veja os melhores modelos e cores de óculos para você com explicações detalhadas",
-  },
-];
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Steps = () => {
+  const { t } = useLanguage();
+
+  const steps = [
+    {
+      number: 1,
+      icon: Camera,
+      title: t("step1Title"),
+      description: t("step1DescFull"),
+    },
+    {
+      number: 2,
+      icon: Brain,
+      title: t("step2Title"),
+      description: t("step2DescFull"),
+    },
+    {
+      number: 3,
+      icon: CheckCircle,
+      title: t("receiveRecommendations"),
+      description: t("step3DescFull"),
+    },
+  ];
+
   return (
     <section className="py-20 px-4">
       <div className="container max-w-4xl mx-auto">
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
-          Simples em 3 Passos
+          {t("simpleIn3Steps")}
         </h2>
 
         <div className="space-y-6 mb-12">
@@ -40,7 +43,7 @@ const Steps = () => {
         <div className="text-center">
           <Link to="/analyze">
             <Button variant="cta">
-              Experimentar Agora
+              {t("tryNow")}
             </Button>
           </Link>
         </div>

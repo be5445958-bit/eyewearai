@@ -3,6 +3,7 @@ import { Camera, Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface PhotoUploadProps {
   onAnalysisComplete: (analysis: AnalysisResult) => void;
@@ -26,14 +27,15 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
   const [uploadProgress, setUploadProgress] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       if (!file.type.startsWith("image/")) {
         toast({
-          title: "Arquivo inválido",
-          description: "Por favor, selecione uma imagem.",
+          title: t("invalidFile"),
+          description: t("selectImage"),
           variant: "destructive",
         });
         return;
@@ -58,7 +60,7 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
     if (!selectedImage) return;
 
     setIsAnalyzing(true);
-    setUploadProgress("Preparando imagem...");
+    setUploadProgress(t("preparingImage"));
 
     try {
       // Convert base64 to blob
@@ -70,7 +72,7 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
       const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
       const fileName = `face-${crypto.randomUUID()}.${safeExt}`;
 
-      setUploadProgress("Enviando foto...");
+      setUploadProgress(t("uploadingPhoto"));
 
       // Upload to Storage
       const { error: uploadError } = await supabase.storage
@@ -80,10 +82,10 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
         });
 
       if (uploadError) {
-        throw new Error("Erro ao fazer upload da foto");
+        throw new Error(t("analysisError"));
       }
 
-      setUploadProgress("Analisando seu rosto com IA...");
+      setUploadProgress(t("analyzingWithAI"));
 
       // Call the analysis backend function (it will create a signed URL and cleanup)
       const { data, error } = await supabase.functions.invoke("analyze-face", {
@@ -91,7 +93,7 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
       });
 
       if (error) {
-        throw new Error(error.message || "Erro na análise");
+        throw new Error(error.message || t("analysisError"));
       }
 
       if (data?.error) {
@@ -101,15 +103,15 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
       onAnalysisComplete(data.analysis);
       
       toast({
-        title: "Análise concluída!",
-        description: "Suas recomendações estão prontas.",
+        title: t("analysisComplete"),
+        description: t("recommendationsReady"),
       });
 
     } catch (error) {
       console.error("Analysis error:", error);
       toast({
-        title: "Erro na análise",
-        description: error instanceof Error ? error.message : "Tente novamente",
+        title: t("analysisError"),
+        description: error instanceof Error ? error.message : t("tryAgain"),
         variant: "destructive",
       });
     } finally {
@@ -138,14 +140,14 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
             <Camera className="w-12 h-12 text-primary" />
           </div>
           <div className="text-center">
-            <p className="font-semibold text-lg mb-1">Tire ou selecione uma foto</p>
+            <p className="font-semibold text-lg mb-1">{t("takeOrSelectPhoto")}</p>
             <p className="text-muted-foreground text-sm">
-              Foto nítida do rosto de frente
+              {t("clearFrontalPhoto")}
             </p>
           </div>
           <Button variant="cta" className="mt-4">
             <Upload className="w-4 h-4 mr-2" />
-            Escolher Foto
+            {t("choosePhoto")}
           </Button>
         </div>
       ) : (
@@ -161,7 +163,7 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
           <div className="rounded-xl overflow-hidden mb-4">
             <img
               src={selectedImage}
-              alt="Sua foto"
+              alt="Your photo"
               className="w-full h-auto object-cover max-h-[400px]"
             />
           </div>
@@ -180,7 +182,7 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
             ) : (
               <>
                 <Camera className="w-5 h-5 mr-2" />
-                Analisar Meu Rosto
+                {t("analyzeMyFace")}
               </>
             )}
           </Button>

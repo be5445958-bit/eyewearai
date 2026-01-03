@@ -1,47 +1,50 @@
 import { Scan, Sparkles, BookOpen, Star, History, GitCompare } from "lucide-react";
-
-const features = [
-  {
-    icon: Scan,
-    title: "Análise Facial Inteligente",
-    description: "IA avançada analisa formato do rosto, tom de pele e características únicas",
-  },
-  {
-    icon: Sparkles,
-    title: "Recomendações Personalizadas",
-    description: "Sugestões precisas de modelos e cores ideais para você",
-  },
-  {
-    icon: BookOpen,
-    title: "Catálogo Completo",
-    description: "Diversos estilos: aviador, wayfarer, redondo, e muito mais",
-  },
-  {
-    icon: Star,
-    title: "Pontuação de Compatibilidade",
-    description: "Score de match para cada modelo recomendado",
-  },
-  {
-    icon: History,
-    title: "Histórico de Análises",
-    description: "Acesse suas análises anteriores a qualquer momento",
-  },
-  {
-    icon: GitCompare,
-    title: "Comparação de Modelos",
-    description: "Compare diferentes estilos lado a lado",
-  },
-];
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Features = () => {
+  const { t } = useLanguage();
+
+  const features = [
+    {
+      icon: Scan,
+      title: t("smartFacialAnalysis"),
+      description: t("smartFacialAnalysisDesc"),
+    },
+    {
+      icon: Sparkles,
+      title: t("personalizedRecommendations"),
+      description: t("personalizedRecommendationsDesc"),
+    },
+    {
+      icon: BookOpen,
+      title: t("completeCatalog"),
+      description: t("completeCatalogDesc"),
+    },
+    {
+      icon: Star,
+      title: t("compatibilityScore"),
+      description: t("compatibilityScoreDesc"),
+    },
+    {
+      icon: History,
+      title: t("analysisHistory"),
+      description: t("analysisHistoryDesc"),
+    },
+    {
+      icon: GitCompare,
+      title: t("modelComparison"),
+      description: t("modelComparisonDesc"),
+    },
+  ];
+
   return (
     <section className="py-20 px-4">
       <div className="container max-w-4xl mx-auto">
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
-          Como Funciona
+          {t("howItWorks")}
         </h2>
         <p className="text-muted-foreground text-center mb-12 max-w-xl mx-auto">
-          Tecnologia de ponta para recomendações precisas
+          {t("cuttingEdgeTech")}
         </p>
 
         <div className="grid gap-4">
