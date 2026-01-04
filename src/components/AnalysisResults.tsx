@@ -159,10 +159,11 @@ const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps)
                 <img
                   src={selectedGlasses}
                   alt="Glasses overlay"
-                  className="w-[60%] object-contain opacity-90"
+                  className="w-[55%] object-contain"
                   style={{
-                    transform: "translateY(-15%)",
-                    filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
+                    transform: "translateY(-18%)",
+                    mixBlendMode: "multiply",
+                    filter: "contrast(1.1)",
                   }}
                 />
               </div>
