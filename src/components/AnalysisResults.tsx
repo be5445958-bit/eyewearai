@@ -4,12 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { AnalysisResult } from "./PhotoUpload";
 import { findGlassesImage, glassesCatalog } from "./GlassesCatalog";
 import { useLanguage } from "@/contexts/LanguageContext";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import GlassesTryOn from "./GlassesTryOn";
 
 interface AnalysisResultsProps {
   analysis: AnalysisResult;
@@ -141,41 +136,12 @@ const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps)
       </div>
 
       {/* Try On Modal */}
-      <Dialog open={showTryOn} onOpenChange={setShowTryOn}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {language === "pt" ? "Experimente os Óculos" : "Try On Glasses"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden bg-muted">
-            <img
-              src={userPhoto}
-              alt="Your face"
-              className="w-full h-full object-cover"
-            />
-            {selectedGlasses && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <img
-                  src={selectedGlasses}
-                  alt="Glasses overlay"
-                  className="w-[55%] object-contain"
-                  style={{
-                    transform: "translateY(-18%)",
-                    mixBlendMode: "multiply",
-                    filter: "contrast(1.1)",
-                  }}
-                />
-              </div>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            {language === "pt" 
-              ? "Esta é uma visualização aproximada. A posição real pode variar." 
-              : "This is an approximate preview. Actual position may vary."}
-          </p>
-        </DialogContent>
-      </Dialog>
+      <GlassesTryOn
+        open={showTryOn}
+        onOpenChange={setShowTryOn}
+        userPhoto={userPhoto}
+        glassesImage={selectedGlasses}
+      />
     </div>
   );
 };
