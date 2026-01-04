@@ -1,19 +1,34 @@
-import { User, Palette, Star, ArrowLeft, Glasses } from "lucide-react";
+import { useState } from "react";
+import { User, Palette, Star, ArrowLeft, Glasses, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AnalysisResult } from "./PhotoUpload";
-import { findGlassesImage } from "./GlassesCatalog";
+import { findGlassesImage, glassesCatalog } from "./GlassesCatalog";
 import { useLanguage } from "@/contexts/LanguageContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface AnalysisResultsProps {
   analysis: AnalysisResult;
+  userPhoto: string;
   onReset: () => void;
 }
 
-const AnalysisResults = ({ analysis, onReset }: AnalysisResultsProps) => {
-  const { t } = useLanguage();
+const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps) => {
+  const { t, language } = useLanguage();
+  const [selectedGlasses, setSelectedGlasses] = useState<string | null>(null);
+  const [showTryOn, setShowTryOn] = useState(false);
+
+  const handleTryOn = (glassesImage: string) => {
+    setSelectedGlasses(glassesImage);
+    setShowTryOn(true);
+  };
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-4 py-8">
+    <div className="w-full max-w-4xl mx-auto px-4 py-8">
       <Button
         variant="ghost"
         onClick={onReset}
@@ -28,7 +43,7 @@ const AnalysisResults = ({ analysis, onReset }: AnalysisResultsProps) => {
       </h2>
 
       {/* Face Info Cards */}
-      <div className="grid gap-4 mb-8">
+      <div className="grid gap-4 mb-8 max-w-2xl mx-auto">
         <div className="glass-card rounded-xl p-5 flex items-start gap-4">
           <div className="p-3 rounded-lg bg-primary/10 text-primary shrink-0">
             <User className="w-6 h-6" />
@@ -56,14 +71,67 @@ const AnalysisResults = ({ analysis, onReset }: AnalysisResultsProps) => {
       </div>
 
       {/* Recommendations */}
-      <h3 className="text-2xl font-bold mb-6">
+      <h3 className="text-2xl font-bold mb-6 max-w-2xl mx-auto">
         <span className="gradient-text">{t("recommendedGlasses")}</span>
       </h3>
 
-      <div className="space-y-4">
+      <div className="space-y-4 max-w-2xl mx-auto mb-12">
         {analysis.recommendations.map((rec, index) => (
-          <RecommendationCard key={index} recommendation={rec} rank={index + 1} />
+          <RecommendationCard 
+            key={index} 
+            recommendation={rec} 
+            rank={index + 1}
+            onTryOn={handleTryOn}
+          />
         ))}
+      </div>
+
+      {/* Glasses Catalog */}
+      <div className="border-t border-border pt-10">
+        <h3 className="text-2xl font-bold mb-2 text-center">
+          {language === "pt" ? "Catálogo de Óculos" : "Glasses Catalog"}
+        </h3>
+        <p className="text-muted-foreground text-center mb-6">
+          {language === "pt" 
+            ? "Clique em qualquer modelo para experimentar no seu rosto" 
+            : "Click on any model to try it on your face"}
+        </p>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {glassesCatalog.map((style) => (
+            <div
+              key={style.id}
+              onClick={() => handleTryOn(style.image)}
+              className="glass-card rounded-xl p-4 text-center cursor-pointer hover:scale-105 hover:border-primary/50 transition-all duration-300"
+            >
+              <div className="aspect-square relative mb-3 bg-white/5 rounded-lg overflow-hidden">
+                <img
+                  src={style.image}
+                  alt={language === "pt" ? style.namePt : style.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <h4 className="font-semibold text-foreground">
+                {language === "pt" ? style.namePt : style.name}
+              </h4>
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                {style.description}
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-3 w-full"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTryOn(style.image);
+                }}
+              >
+                <Eye className="w-3 h-3 mr-1" />
+                {language === "pt" ? "Experimentar" : "Try On"}
+              </Button>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="text-center mt-10">
@@ -71,6 +139,42 @@ const AnalysisResults = ({ analysis, onReset }: AnalysisResultsProps) => {
           {t("makeNewAnalysis")}
         </Button>
       </div>
+
+      {/* Try On Modal */}
+      <Dialog open={showTryOn} onOpenChange={setShowTryOn}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {language === "pt" ? "Experimente os Óculos" : "Try On Glasses"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden bg-muted">
+            <img
+              src={userPhoto}
+              alt="Your face"
+              className="w-full h-full object-cover"
+            />
+            {selectedGlasses && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <img
+                  src={selectedGlasses}
+                  alt="Glasses overlay"
+                  className="w-[60%] object-contain opacity-90"
+                  style={{
+                    transform: "translateY(-15%)",
+                    filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            {language === "pt" 
+              ? "Esta é uma visualização aproximada. A posição real pode variar." 
+              : "This is an approximate preview. Actual position may vary."}
+          </p>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -78,10 +182,13 @@ const AnalysisResults = ({ analysis, onReset }: AnalysisResultsProps) => {
 const RecommendationCard = ({
   recommendation,
   rank,
+  onTryOn,
 }: {
   recommendation: AnalysisResult["recommendations"][0];
   rank: number;
+  onTryOn: (glassesImage: string) => void;
 }) => {
+  const { language } = useLanguage();
   const glassesImage = findGlassesImage(recommendation.style);
   
   const getScoreColor = (score: number) => {
@@ -92,29 +199,26 @@ const RecommendationCard = ({
 
   return (
     <div className="glass-card rounded-xl p-5 animate-fade-in" style={{ animationDelay: `${rank * 100}ms` }}>
-      <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row gap-4">
         {/* Glasses Image */}
-        {glassesImage && (
-          <div className="w-24 h-24 shrink-0 bg-white rounded-lg overflow-hidden">
+        <div className="w-full sm:w-24 h-24 shrink-0 bg-white rounded-lg overflow-hidden">
+          {glassesImage ? (
             <img
               src={glassesImage}
               alt={recommendation.style}
               className="w-full h-full object-cover"
             />
-          </div>
-        )}
-        
-        <div className="flex-1">
-          <div className="flex items-start justify-between gap-4 mb-2">
-            <div className="flex items-center gap-3">
-              {!glassesImage && (
-                <div className="step-gradient w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                  <Glasses className="w-5 h-5 text-primary-foreground" />
-                </div>
-              )}
-              <h4 className="font-semibold text-lg">{recommendation.style}</h4>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-primary/10">
+              <Glasses className="w-8 h-8 text-primary" />
             </div>
-            <div className="flex items-center gap-1">
+          )}
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <h4 className="font-semibold text-lg truncate">{recommendation.style}</h4>
+            <div className="flex items-center gap-1 shrink-0">
               <Star className="w-4 h-4 text-primary fill-primary" />
               <span className={`font-bold ${getScoreColor(recommendation.compatibilityScore)}`}>
                 {recommendation.compatibilityScore}%
@@ -126,7 +230,7 @@ const RecommendationCard = ({
             {recommendation.reason}
           </p>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mb-3">
             {recommendation.colors.map((color, idx) => (
               <span
                 key={idx}
@@ -136,6 +240,17 @@ const RecommendationCard = ({
               </span>
             ))}
           </div>
+
+          {glassesImage && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => onTryOn(glassesImage)}
+            >
+              <Eye className="w-3 h-3 mr-1" />
+              {language === "pt" ? "Experimentar" : "Try On"}
+            </Button>
+          )}
         </div>
       </div>
     </div>
