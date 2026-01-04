@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 interface PhotoUploadProps {
-  onAnalysisComplete: (analysis: AnalysisResult) => void;
+  onAnalysisComplete: (analysis: AnalysisResult, photo: string) => void;
 }
 
 export interface AnalysisResult {
@@ -100,7 +100,7 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
         throw new Error(data.error);
       }
 
-      onAnalysisComplete(data.analysis);
+      onAnalysisComplete(data.analysis, selectedImage);
       
       toast({
         title: t("analysisComplete"),

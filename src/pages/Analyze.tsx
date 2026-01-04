@@ -9,14 +9,17 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 const Analyze = () => {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const { t } = useLanguage();
 
-  const handleAnalysisComplete = (analysis: AnalysisResult) => {
+  const handleAnalysisComplete = (analysis: AnalysisResult, photo: string) => {
     setAnalysisResult(analysis);
+    setUserPhoto(photo);
   };
 
   const handleReset = () => {
     setAnalysisResult(null);
+    setUserPhoto(null);
   };
 
   return (
@@ -38,7 +41,7 @@ const Analyze = () => {
           <LanguageSelector />
         </div>
 
-        {!analysisResult ? (
+        {!analysisResult || !userPhoto ? (
           <>
             <div className="text-center mb-10">
               <h1 className="text-3xl md:text-4xl font-bold mb-4">
@@ -58,7 +61,7 @@ const Analyze = () => {
             </div>
           </>
         ) : (
-          <AnalysisResults analysis={analysisResult} onReset={handleReset} />
+          <AnalysisResults analysis={analysisResult} userPhoto={userPhoto} onReset={handleReset} />
         )}
       </div>
     </main>
