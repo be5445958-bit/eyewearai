@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Canvas as FabricCanvas, FabricImage } from "fabric";
+import * as fabric from "fabric";
 import { RotateCcw, ZoomIn, ZoomOut, Move } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -22,8 +22,8 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
   const { language } = useLanguage();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
-  const [glassesObj, setGlassesObj] = useState<FabricImage | null>(null);
+  const [fabricCanvas, setFabricCanvas] = useState<fabric.Canvas | null>(null);
+  const [glassesObj, setGlassesObj] = useState<fabric.FabricImage | null>(null);
   const [scale, setScale] = useState(100);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
     const containerWidth = containerRef.current.clientWidth;
     const containerHeight = containerRef.current.clientHeight || 500;
 
-    const canvas = new FabricCanvas(canvasRef.current, {
+    const canvas = new fabric.Canvas(canvasRef.current, {
       width: containerWidth,
       height: containerHeight,
       backgroundColor: "#1a1a1a",
@@ -42,7 +42,7 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
     setFabricCanvas(canvas);
 
     // Load user photo as background
-    FabricImage.fromURL(userPhoto, { crossOrigin: "anonymous" }).then((img) => {
+    fabric.FabricImage.fromURL(userPhoto, { crossOrigin: "anonymous" }).then((img) => {
       const scaleX = containerWidth / (img.width || 1);
       const scaleY = containerHeight / (img.height || 1);
       const bgScale = Math.max(scaleX, scaleY);
@@ -78,7 +78,7 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
       fabricCanvas.remove(glassesObj);
     }
 
-    FabricImage.fromURL(glassesImage, { crossOrigin: "anonymous" }).then((img) => {
+    fabric.FabricImage.fromURL(glassesImage, { crossOrigin: "anonymous" }).then((img) => {
       const canvasWidth = fabricCanvas.width || 400;
       const canvasHeight = fabricCanvas.height || 500;
       const glassesScale = (canvasWidth * 0.5) / (img.width || 1);
