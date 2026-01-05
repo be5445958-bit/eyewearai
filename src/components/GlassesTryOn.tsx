@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as fabric from "fabric";
 import { RotateCcw, ZoomIn, ZoomOut, Move } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -22,68 +23,93 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
   const { language } = useLanguage();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [fabricCanvas, setFabricCanvas] = useState<fabric.Canvas | null>(null);
-  const [glassesObj, setGlassesObj] = useState<fabric.FabricImage | null>(null);
+  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
+  const glassesObjRef = useRef<fabric.FabricImage | null>(null);
   const [scale, setScale] = useState(100);
+  const [isReady, setIsReady] = useState(false);
+  const baseScaleRef = useRef(1);
 
+  // Initialize canvas
   useEffect(() => {
     if (!open || !canvasRef.current || !containerRef.current) return;
 
-    const containerWidth = containerRef.current.clientWidth;
-    const containerHeight = containerRef.current.clientHeight || 500;
+    const containerWidth = containerRef.current.clientWidth || 400;
+    const containerHeight = 400;
+
+    // Dispose previous canvas if exists
+    if (fabricCanvasRef.current) {
+      fabricCanvasRef.current.dispose();
+      fabricCanvasRef.current = null;
+    }
 
     const canvas = new fabric.Canvas(canvasRef.current, {
       width: containerWidth,
       height: containerHeight,
       backgroundColor: "#1a1a1a",
-      selection: true,
+      selection: false,
     });
 
-    setFabricCanvas(canvas);
+    fabricCanvasRef.current = canvas;
 
     // Load user photo as background
-    fabric.FabricImage.fromURL(userPhoto, { crossOrigin: "anonymous" }).then((img) => {
-      const scaleX = containerWidth / (img.width || 1);
-      const scaleY = containerHeight / (img.height || 1);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const fabricImg = new fabric.FabricImage(img, {
+        selectable: false,
+        evented: false,
+      });
+
+      const scaleX = containerWidth / img.width;
+      const scaleY = containerHeight / img.height;
       const bgScale = Math.max(scaleX, scaleY);
 
-      img.set({
+      fabricImg.set({
         scaleX: bgScale,
         scaleY: bgScale,
         left: containerWidth / 2,
         top: containerHeight / 2,
         originX: "center",
         originY: "center",
-        selectable: false,
-        evented: false,
       });
 
-      canvas.backgroundImage = img;
+      canvas.backgroundImage = fabricImg;
       canvas.renderAll();
-    });
+      setIsReady(true);
+    };
+    img.src = userPhoto;
 
     return () => {
-      canvas.dispose();
-      setFabricCanvas(null);
-      setGlassesObj(null);
+      if (fabricCanvasRef.current) {
+        fabricCanvasRef.current.dispose();
+        fabricCanvasRef.current = null;
+      }
+      glassesObjRef.current = null;
+      setIsReady(false);
+      setScale(100);
     };
   }, [open, userPhoto]);
 
   // Load glasses when image changes
   useEffect(() => {
-    if (!fabricCanvas || !glassesImage) return;
+    const canvas = fabricCanvasRef.current;
+    if (!canvas || !glassesImage || !isReady) return;
 
     // Remove previous glasses
-    if (glassesObj) {
-      fabricCanvas.remove(glassesObj);
+    if (glassesObjRef.current) {
+      canvas.remove(glassesObjRef.current);
+      glassesObjRef.current = null;
     }
 
-    fabric.FabricImage.fromURL(glassesImage, { crossOrigin: "anonymous" }).then((img) => {
-      const canvasWidth = fabricCanvas.width || 400;
-      const canvasHeight = fabricCanvas.height || 500;
-      const glassesScale = (canvasWidth * 0.5) / (img.width || 1);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvasWidth = canvas.width || 400;
+      const canvasHeight = canvas.height || 400;
+      const glassesScale = (canvasWidth * 0.4) / img.width;
+      baseScaleRef.current = glassesScale;
 
-      img.set({
+      const fabricImg = new fabric.FabricImage(img, {
         left: canvasWidth / 2,
         top: canvasHeight * 0.35,
         originX: "center",
@@ -96,71 +122,76 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
         cornerSize: 12,
         transparentCorners: false,
         cornerStyle: "circle",
+        hasControls: true,
+        hasBorders: true,
+        lockUniScaling: true,
       });
 
-      fabricCanvas.add(img);
-      fabricCanvas.setActiveObject(img);
-      fabricCanvas.renderAll();
-      setGlassesObj(img);
+      canvas.add(fabricImg);
+      canvas.setActiveObject(fabricImg);
+      canvas.renderAll();
+      glassesObjRef.current = fabricImg;
       setScale(100);
-    });
-  }, [fabricCanvas, glassesImage]);
+    };
+    img.src = glassesImage;
+  }, [glassesImage, isReady]);
 
   // Handle scale slider
-  useEffect(() => {
-    if (!glassesObj || !fabricCanvas) return;
+  const handleScaleChange = useCallback((values: number[]) => {
+    const newScale = values[0];
+    setScale(newScale);
 
-    const baseScale = ((fabricCanvas.width || 400) * 0.5) / (glassesObj.width || 1);
-    const newScale = baseScale * (scale / 100);
+    const glasses = glassesObjRef.current;
+    const canvas = fabricCanvasRef.current;
+    if (!glasses || !canvas) return;
 
-    glassesObj.set({
-      scaleX: newScale,
-      scaleY: newScale,
+    const scaleFactor = baseScaleRef.current * (newScale / 100);
+    glasses.set({
+      scaleX: scaleFactor,
+      scaleY: scaleFactor,
     });
-    fabricCanvas.renderAll();
-  }, [scale, glassesObj, fabricCanvas]);
+    canvas.renderAll();
+  }, []);
 
-  const handleReset = () => {
-    if (!glassesObj || !fabricCanvas) return;
+  const handleReset = useCallback(() => {
+    const glasses = glassesObjRef.current;
+    const canvas = fabricCanvasRef.current;
+    if (!glasses || !canvas) return;
 
-    const canvasWidth = fabricCanvas.width || 400;
-    const canvasHeight = fabricCanvas.height || 500;
-    const baseScale = (canvasWidth * 0.5) / (glassesObj.width || 1);
+    const canvasWidth = canvas.width || 400;
+    const canvasHeight = canvas.height || 400;
 
-    glassesObj.set({
+    glasses.set({
       left: canvasWidth / 2,
       top: canvasHeight * 0.35,
-      scaleX: baseScale,
-      scaleY: baseScale,
+      scaleX: baseScaleRef.current,
+      scaleY: baseScaleRef.current,
       angle: 0,
     });
-    fabricCanvas.renderAll();
+    canvas.renderAll();
     setScale(100);
-  };
+  }, []);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden">
-        <DialogHeader className="p-4 pb-0">
+      <DialogContent className="max-w-lg p-0 overflow-hidden" aria-describedby="try-on-description">
+        <DialogHeader className="p-4 pb-2">
           <DialogTitle>
             {language === "pt" ? "Experimente os Óculos" : "Try On Glasses"}
           </DialogTitle>
-        </DialogHeader>
-
-        <div className="px-4">
-          <p className="text-xs text-muted-foreground mb-2">
+          <DialogDescription id="try-on-description">
             {language === "pt"
               ? "Arraste para mover, use as alças para redimensionar"
               : "Drag to move, use handles to resize"}
-          </p>
-        </div>
+          </DialogDescription>
+        </DialogHeader>
 
         <div
           ref={containerRef}
           className="relative w-full bg-muted"
           style={{ height: "400px" }}
         >
-          <canvas ref={canvasRef} className="w-full h-full" />
+          <canvas ref={canvasRef} />
         </div>
 
         {/* Controls */}
@@ -169,7 +200,7 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
             <ZoomOut className="w-4 h-4 text-muted-foreground" />
             <Slider
               value={[scale]}
-              onValueChange={(val) => setScale(val[0])}
+              onValueChange={handleScaleChange}
               min={50}
               max={200}
               step={5}
