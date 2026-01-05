@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as fabric from "fabric";
-import { RotateCcw, ZoomIn, ZoomOut, Move } from "lucide-react";
+import { RotateCcw, ZoomIn, ZoomOut, Move, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -35,16 +34,26 @@ function loadHtmlImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function coverToJpegDataUrl(img: HTMLImageElement, outW: number, outH: number) {
+async function waitForNonZeroWidth(el: HTMLElement, fallback = 400) {
+  // Wait a couple frames for Dialog portal/layout to settle
+  for (let i = 0; i < 10; i++) {
+    const w = Math.round(el.clientWidth);
+    if (w > 10) return w;
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+  }
+  return fallback;
+}
+
+function coverToCanvas(img: HTMLImageElement, outW: number, outH: number) {
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
-  if (!w || !h) return null;
 
   const canvas = document.createElement("canvas");
   canvas.width = outW;
   canvas.height = outH;
+
   const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
+  if (!ctx || !w || !h) return canvas;
 
   const scale = Math.max(outW / w, outH / h);
   const srcW = outW / scale;
@@ -53,19 +62,19 @@ function coverToJpegDataUrl(img: HTMLImageElement, outW: number, outH: number) {
   const sy = Math.max(0, (h - srcH) / 2);
 
   ctx.drawImage(img, sx, sy, srcW, srcH, 0, 0, outW, outH);
-  return canvas.toDataURL("image/jpeg", 0.9);
+  return canvas;
 }
 
-function containToPngDataUrl(img: HTMLImageElement, outW: number, outH: number) {
+function containToCanvas(img: HTMLImageElement, outW: number, outH: number) {
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
-  if (!w || !h) return null;
 
   const canvas = document.createElement("canvas");
   canvas.width = outW;
   canvas.height = outH;
+
   const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
+  if (!ctx || !w || !h) return canvas;
 
   ctx.clearRect(0, 0, outW, outH);
 
@@ -76,57 +85,68 @@ function containToPngDataUrl(img: HTMLImageElement, outW: number, outH: number) 
   const dy = Math.round((outH - drawH) / 2);
 
   ctx.drawImage(img, 0, 0, w, h, dx, dy, drawW, drawH);
-  return canvas.toDataURL("image/png");
+  return canvas;
 }
 
 const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTryOnProps) => {
   const { language } = useLanguage();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+
+  const canvasElRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const glassesObjRef = useRef<fabric.FabricImage | null>(null);
   const baseScaleRef = useRef(1);
 
   const [scale, setScale] = useState(100);
-  const [ready, setReady] = useState(false);
+  const [bgLoading, setBgLoading] = useState(false);
+  const [glassesLoading, setGlassesLoading] = useState(false);
+  const [bgError, setBgError] = useState<string | null>(null);
 
-  // Init + background
+  // Init canvas + background
   useEffect(() => {
-    if (!open || !canvasRef.current || !containerRef.current) return;
+    if (!open) return;
+    if (!canvasElRef.current || !stageRef.current) return;
 
     let cancelled = false;
-    setReady(false);
 
-    const raf = requestAnimationFrame(async () => {
+    (async () => {
+      setBgError(null);
+      setBgLoading(true);
+
+      const width = await waitForNonZeroWidth(stageRef.current!, 400);
       if (cancelled) return;
 
-      const containerWidth = containerRef.current?.clientWidth || 400;
-
-      // Dispose previous canvas (safety)
+      // Hard reset
       if (fabricCanvasRef.current) {
         fabricCanvasRef.current.dispose();
         fabricCanvasRef.current = null;
       }
+      glassesObjRef.current = null;
+      baseScaleRef.current = 1;
+      setScale(100);
 
-      const canvas = new fabric.Canvas(canvasRef.current!, {
-        width: containerWidth,
+      // Ensure element has proper backstore dimensions first
+      canvasElRef.current!.width = width;
+      canvasElRef.current!.height = CANVAS_HEIGHT;
+
+      const canvas = new fabric.Canvas(canvasElRef.current!, {
+        width,
         height: CANVAS_HEIGHT,
         selection: false,
         enableRetinaScaling: false,
+        imageSmoothingEnabled: true,
+        backgroundColor: "hsl(var(--muted))",
       });
       fabricCanvasRef.current = canvas;
 
       try {
-        const bgImgEl = await loadHtmlImage(userPhoto);
+        const bgImg = await loadHtmlImage(userPhoto);
         if (cancelled) return;
 
-        const bgDataUrl = coverToJpegDataUrl(bgImgEl, containerWidth, CANVAS_HEIGHT) ?? userPhoto;
-        const bg = await fabric.FabricImage.fromURL(bgDataUrl);
-        if (cancelled) return;
-
-        bg.set({
-          left: containerWidth / 2,
+        const bgCanvas = coverToCanvas(bgImg, width, CANVAS_HEIGHT);
+        const bgFabric = new fabric.FabricImage(bgCanvas, {
+          left: width / 2,
           top: CANVAS_HEIGHT / 2,
           originX: "center",
           originY: "center",
@@ -134,56 +154,62 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
           evented: false,
         });
 
-        canvas.backgroundImage = bg;
+        canvas.backgroundImage = bgFabric;
         canvas.requestRenderAll();
       } catch (e) {
-        console.error("[try-on] failed to load background", e);
+        console.error("[try-on] background load failed", e);
+        setBgError(language === "pt" ? "Não consegui carregar sua foto." : "Could not load your photo.");
       } finally {
-        if (!cancelled) setReady(true);
+        if (!cancelled) setBgLoading(false);
       }
-    });
+    })();
 
     return () => {
       cancelled = true;
-      cancelAnimationFrame(raf);
+      setBgLoading(false);
+      setGlassesLoading(false);
 
       if (fabricCanvasRef.current) {
         fabricCanvasRef.current.dispose();
         fabricCanvasRef.current = null;
       }
       glassesObjRef.current = null;
-      setScale(100);
-      setReady(false);
     };
-  }, [open, userPhoto]);
+  }, [open, userPhoto, language]);
 
-  // Glasses
+  // Load glasses
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
-    if (!open || !ready || !canvas || !glassesImage) return;
+    if (!open || !canvas || !glassesImage) return;
+    if (bgLoading) return;
 
     let cancelled = false;
 
     (async () => {
+      setGlassesLoading(true);
       try {
         if (glassesObjRef.current) {
           canvas.remove(glassesObjRef.current);
           glassesObjRef.current = null;
         }
 
-        const gImgEl = await loadHtmlImage(glassesImage);
+        const gImg = await loadHtmlImage(glassesImage);
         if (cancelled) return;
 
         const canvasWidth = canvas.width || 400;
         const canvasHeight = canvas.height || CANVAS_HEIGHT;
 
-        // Downscale to keep drag smooth on mobile
-        const targetWidth = Math.min(700, Math.max(260, Math.round(canvasWidth * 0.8)));
-        const targetHeight = Math.min(420, Math.max(160, Math.round(canvasHeight * 0.35)));
-        const downscaled = containToPngDataUrl(gImgEl, targetWidth, targetHeight) ?? glassesImage;
+        // Downscale for smooth dragging on mobile
+        const targetW = Math.min(720, Math.max(280, Math.round(canvasWidth * 0.8)));
+        const targetH = Math.min(420, Math.max(180, Math.round(canvasHeight * 0.35)));
+        const gCanvas = containToCanvas(gImg, targetW, targetH);
 
-        const img = await fabric.FabricImage.fromURL(downscaled);
-        if (cancelled) return;
+        const img = new fabric.FabricImage(gCanvas, {
+          left: canvasWidth / 2,
+          top: canvasHeight * 0.35,
+          originX: "center",
+          originY: "center",
+        });
 
         const glassesScale = (canvasWidth * 0.55) / (img.width || 1);
         baseScaleRef.current = glassesScale;
@@ -191,16 +217,10 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
         const primary = "hsl(var(--primary))";
 
         img.set({
-          left: canvasWidth / 2,
-          top: canvasHeight * 0.35,
-          originX: "center",
-          originY: "center",
           scaleX: glassesScale,
           scaleY: glassesScale,
-
-          // Blend a bit to reduce white background if the PNG isn't transparent
+          // reduce "fundo branco" when the PNG isn't transparent
           globalCompositeOperation: "multiply",
-
           hasControls: true,
           hasBorders: true,
           lockUniScaling: true,
@@ -219,14 +239,16 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
         glassesObjRef.current = img;
         setScale(100);
       } catch (e) {
-        console.error("[try-on] failed to load glasses", e);
+        console.error("[try-on] glasses load failed", e);
+      } finally {
+        if (!cancelled) setGlassesLoading(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [open, ready, glassesImage]);
+  }, [open, glassesImage, bgLoading]);
 
   const handleScaleChange = useCallback((values: number[]) => {
     const next = values[0];
@@ -236,8 +258,8 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
     const canvas = fabricCanvasRef.current;
     if (!glasses || !canvas) return;
 
-    const scaleFactor = baseScaleRef.current * (next / 100);
-    glasses.set({ scaleX: scaleFactor, scaleY: scaleFactor });
+    const s = baseScaleRef.current * (next / 100);
+    glasses.set({ scaleX: s, scaleY: s });
     canvas.requestRenderAll();
   }, []);
 
@@ -260,10 +282,12 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
     setScale(100);
   }, []);
 
+  const isBusy = bgLoading || glassesLoading;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg p-0 overflow-hidden" aria-describedby="try-on-description">
-        <DialogHeader className="p-4 pb-2">
+        <div className="p-4 pb-2 flex flex-col space-y-1.5 text-center sm:text-left">
           <DialogTitle>
             {language === "pt" ? "Experimente os Óculos" : "Try On Glasses"}
           </DialogTitle>
@@ -272,10 +296,22 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
               ? "Arraste para mover, use as alças para redimensionar"
               : "Drag to move, use handles to resize"}
           </DialogDescription>
-        </DialogHeader>
+        </div>
 
-        <div ref={containerRef} className="relative w-full bg-muted" style={{ height: `${CANVAS_HEIGHT}px` }}>
-          <canvas ref={canvasRef} className="w-full h-full block" />
+        <div ref={stageRef} className="relative w-full bg-muted" style={{ height: `${CANVAS_HEIGHT}px` }}>
+          <canvas ref={canvasElRef} className="w-full h-full block touch-none" />
+
+          {(isBusy || bgError) && (
+            <div className="absolute inset-0 grid place-items-center bg-background/40 backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                {isBusy && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span>
+                  {bgError ||
+                    (language === "pt" ? "Carregando..." : "Loading...")}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="p-4 space-y-4 border-t">
@@ -288,13 +324,19 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
               max={200}
               step={5}
               className="flex-1"
-              disabled={!ready}
+              disabled={bgLoading || !!bgError}
             />
             <ZoomIn className="w-4 h-4 text-muted-foreground" />
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleReset} className="flex-1" disabled={!ready}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReset}
+              className="flex-1"
+              disabled={bgLoading || !!bgError}
+            >
               <RotateCcw className="w-4 h-4 mr-2" />
               {language === "pt" ? "Resetar" : "Reset"}
             </Button>
