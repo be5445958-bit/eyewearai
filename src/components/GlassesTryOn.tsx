@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RotateCcw, ZoomIn, ZoomOut, Move, Loader2 } from "lucide-react";
+import { RotateCcw, ZoomIn, ZoomOut, Move, Loader2, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -22,7 +22,7 @@ interface GlassesTryOnProps {
   };
 }
 
-const CONTAINER_HEIGHT = 400;
+const CONTAINER_HEIGHT = 450;
 
 const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePositions }: GlassesTryOnProps) => {
   const { language } = useLanguage();
@@ -40,7 +40,9 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
   const [glassesScale, setGlassesScale] = useState(1);
   const [baseScale, setBaseScale] = useState(1);
   const [glassesAngle, setGlassesAngle] = useState(0);
-  const [sliderValue, setSliderValue] = useState(100);
+  const [baseAngle, setBaseAngle] = useState(0);
+  const [scaleSlider, setScaleSlider] = useState(100);
+  const [rotationSlider, setRotationSlider] = useState(0);
   
   // Drag state
   const [isDragging, setIsDragging] = useState(false);
@@ -77,8 +79,8 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
       setBgLoaded(false);
       setGlassesLoaded(false);
       setBgError(false);
-      setSliderValue(100);
-      setGlassesAngle(0);
+      setScaleSlider(100);
+      setRotationSlider(0);
     }
   }, [open, userPhoto, glassesImage]);
 
@@ -104,9 +106,6 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
     
     const glassesEl = glassesRef.current;
     const glassesNaturalW = glassesEl.naturalWidth;
-    
-    const displayedW = imageDims.displayed.w;
-    const displayedH = imageDims.displayed.h;
     
     // Calculate offset for the image within the container (object-cover centering)
     const containerAspect = containerWidth / CONTAINER_HEIGHT;
@@ -144,16 +143,17 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
         Math.pow(rightEyeY - leftEyeY, 2)
       );
       
-      // Glasses should be about 2.2x the eye distance
-      const targetGlassesWidth = eyeDistance * 2.2;
+      // Glasses should be about 2.4x the eye distance for realistic fit
+      const targetGlassesWidth = eyeDistance * 2.4;
       const scale = targetGlassesWidth / glassesNaturalW;
       
-      // Calculate angle
+      // Calculate angle from eye positions
       const angle = Math.atan2(rightEyeY - leftEyeY, rightEyeX - leftEyeX) * (180 / Math.PI);
       
       setGlassesPos({ x: centerX, y: centerY });
       setBaseScale(scale);
       setGlassesScale(scale);
+      setBaseAngle(angle);
       setGlassesAngle(angle);
       
       console.log("[try-on] Auto-positioned:", { centerX, centerY, scale, angle, eyeDistance });
@@ -163,6 +163,7 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
       const scale = (containerWidth * 0.5) / glassesNaturalW;
       setBaseScale(scale);
       setGlassesScale(scale);
+      setBaseAngle(0);
       setGlassesAngle(0);
     }
   }, [bgLoaded, glassesLoaded, imageDims, eyePositions, containerWidth]);
@@ -173,13 +174,21 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
 
   const handleScaleChange = useCallback((values: number[]) => {
     const val = values[0];
-    setSliderValue(val);
+    setScaleSlider(val);
     setGlassesScale(baseScale * (val / 100));
   }, [baseScale]);
 
+  const handleRotationChange = useCallback((values: number[]) => {
+    const val = values[0];
+    setRotationSlider(val);
+    setGlassesAngle(baseAngle + val);
+  }, [baseAngle]);
+
   const handleReset = useCallback(() => {
-    setSliderValue(100);
+    setScaleSlider(100);
+    setRotationSlider(0);
     setGlassesScale(baseScale);
+    setGlassesAngle(baseAngle);
     
     if (eyePositions && imageDims) {
       // Recalculate position from eye positions
@@ -206,15 +215,12 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
       
       const centerX = (leftEyeX + rightEyeX) / 2;
       const centerY = (leftEyeY + rightEyeY) / 2;
-      const angle = Math.atan2(rightEyeY - leftEyeY, rightEyeX - leftEyeX) * (180 / Math.PI);
       
       setGlassesPos({ x: centerX, y: centerY });
-      setGlassesAngle(angle);
     } else {
       setGlassesPos({ x: containerWidth / 2, y: CONTAINER_HEIGHT * 0.35 });
-      setGlassesAngle(0);
     }
-  }, [baseScale, eyePositions, imageDims, containerWidth]);
+  }, [baseScale, baseAngle, eyePositions, imageDims, containerWidth]);
 
   // Drag handlers
   const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -258,8 +264,8 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
           </DialogTitle>
           <DialogDescription>
             {language === "pt"
-              ? "Arraste para mover, use o slider para redimensionar"
-              : "Drag to move, use slider to resize"}
+              ? "Arraste para mover, ajuste tamanho e rotação"
+              : "Drag to move, adjust size and rotation"}
           </DialogDescription>
         </div>
 
@@ -283,21 +289,20 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
             draggable={false}
           />
           
-          {/* Glasses overlay */}
+          {/* Glasses overlay with realistic blending */}
           {glassesImage && bgLoaded && (
             <img
               ref={glassesRef}
               src={glassesImage}
               alt="Glasses"
-              className="absolute cursor-move touch-none"
+              className="absolute cursor-move touch-none pointer-events-auto"
               style={{
                 left: glassesPos.x,
                 top: glassesPos.y,
                 transform: `translate(-50%, -50%) scale(${glassesScale}) rotate(${glassesAngle}deg)`,
-                mixBlendMode: 'multiply',
+                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
                 opacity: glassesLoaded ? 1 : 0,
                 transition: isDragging ? 'none' : 'opacity 0.2s',
-                pointerEvents: 'auto',
               }}
               onLoad={handleGlassesLoad}
               onMouseDown={handleDragStart}
@@ -321,37 +326,51 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
           )}
         </div>
 
-        <div className="p-4 space-y-4 border-t">
-          <div className="flex items-center gap-4">
-            <ZoomOut className="w-4 h-4 text-muted-foreground" />
+        <div className="p-4 space-y-3 border-t">
+          {/* Scale slider */}
+          <div className="flex items-center gap-3">
+            <ZoomOut className="w-4 h-4 text-muted-foreground shrink-0" />
             <Slider
-              value={[sliderValue]}
+              value={[scaleSlider]}
               onValueChange={handleScaleChange}
               min={50}
               max={200}
-              step={5}
+              step={2}
               className="flex-1"
               disabled={isLoading || bgError}
             />
-            <ZoomIn className="w-4 h-4 text-muted-foreground" />
+            <ZoomIn className="w-4 h-4 text-muted-foreground shrink-0" />
           </div>
 
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReset}
+          {/* Rotation slider */}
+          <div className="flex items-center gap-3">
+            <RotateCcw className="w-4 h-4 text-muted-foreground shrink-0" />
+            <Slider
+              value={[rotationSlider]}
+              onValueChange={handleRotationChange}
+              min={-30}
+              max={30}
+              step={1}
               className="flex-1"
               disabled={isLoading || bgError}
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              {language === "pt" ? "Resetar" : "Reset"}
-            </Button>
+            />
+            <RotateCw className="w-4 h-4 text-muted-foreground shrink-0" />
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReset}
+            className="w-full"
+            disabled={isLoading || bgError}
+          >
+            <RotateCcw className="w-4 h-4 mr-2" />
+            {language === "pt" ? "Resetar" : "Reset"}
+          </Button>
 
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <Move className="w-3 h-3" />
-            {language === "pt" ? "Arraste os óculos para posicionar" : "Drag the glasses to position"}
+            {language === "pt" ? "Arraste os óculos para posicionar" : "Drag glasses to position"}
           </div>
         </div>
       </DialogContent>
