@@ -9,10 +9,19 @@ interface PhotoUploadProps {
   onAnalysisComplete: (analysis: AnalysisResult, photo: string) => void;
 }
 
+export interface EyePosition {
+  x: number;
+  y: number;
+}
+
 export interface AnalysisResult {
   faceShape: string;
   skinTone: string;
   facialFeatures: string;
+  eyePositions?: {
+    leftEye: EyePosition;
+    rightEye: EyePosition;
+  };
   recommendations: {
     style: string;
     reason: string;

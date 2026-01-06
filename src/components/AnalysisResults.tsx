@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { User, Palette, Star, ArrowLeft, Glasses, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { AnalysisResult } from "./PhotoUpload";
+import type { AnalysisResult, EyePosition } from "./PhotoUpload";
 import { findGlassesImage, glassesCatalog } from "./GlassesCatalog";
 import { useLanguage } from "@/contexts/LanguageContext";
 import GlassesTryOn from "./GlassesTryOn";
@@ -16,6 +16,7 @@ const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps)
   const { t, language } = useLanguage();
   const [selectedGlasses, setSelectedGlasses] = useState<string | null>(null);
   const [showTryOn, setShowTryOn] = useState(false);
+  const eyePositions = analysis.eyePositions;
 
   const handleTryOn = (glassesImage: string) => {
     setSelectedGlasses(glassesImage);
@@ -141,6 +142,7 @@ const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps)
         onOpenChange={setShowTryOn}
         userPhoto={userPhoto}
         glassesImage={selectedGlasses}
+        eyePositions={eyePositions}
       />
     </div>
   );
