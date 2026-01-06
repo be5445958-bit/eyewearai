@@ -62,12 +62,13 @@ serve(async (req) => {
 
     const imageUrl = signed.signedUrl;
 
-    const systemPrompt = `Você é um especialista em análise facial e recomendação de óculos. Analise a foto do rosto e forneça:
+const systemPrompt = `Você é um especialista em análise facial e recomendação de óculos. Analise a foto do rosto e forneça:
 
 1. **Formato do Rosto**: Identifique se é oval, redondo, quadrado, retangular, coração, diamante ou oblongo
 2. **Tom de Pele**: Classifique como claro, médio, oliva, moreno ou escuro
 3. **Características Faciais**: Note características marcantes (maçãs do rosto, queixo, testa, etc)
 4. **Recomendações de Óculos**: Sugira 3-5 estilos de armação que combinariam melhor, explicando por quê
+5. **Posição dos Olhos**: Forneça as coordenadas NORMALIZADAS (0-1) do centro de cada olho na imagem. O ponto (0,0) é o canto superior esquerdo e (1,1) é o canto inferior direito.
 
 Para cada recomendação de óculos, inclua:
 - Nome do estilo (ex: Aviador, Wayfarer, Redondo, Cat-Eye, etc)
@@ -80,6 +81,10 @@ Responda em JSON com esta estrutura exata:
   "faceShape": "formato identificado",
   "skinTone": "tom de pele",
   "facialFeatures": "descrição das características",
+  "eyePositions": {
+    "leftEye": { "x": 0.35, "y": 0.40 },
+    "rightEye": { "x": 0.65, "y": 0.40 }
+  },
   "recommendations": [
     {
       "style": "nome do estilo",

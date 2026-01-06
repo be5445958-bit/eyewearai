@@ -10,12 +10,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLanguage } from "@/contexts/LanguageContext";
+import type { EyePosition } from "./PhotoUpload";
 
 interface GlassesTryOnProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userPhoto: string;
   glassesImage: string | null;
+  eyePositions?: {
+    leftEye: EyePosition;
+    rightEye: EyePosition;
+  };
 }
 
 const CANVAS_HEIGHT = 400;
@@ -88,7 +93,7 @@ function containToCanvas(img: HTMLImageElement, outW: number, outH: number) {
   return canvas;
 }
 
-const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTryOnProps) => {
+const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePositions }: GlassesTryOnProps) => {
   const { language } = useLanguage();
 
   const canvasElRef = useRef<HTMLCanvasElement>(null);
@@ -97,6 +102,10 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const glassesObjRef = useRef<fabric.FabricImage | null>(null);
   const baseScaleRef = useRef(1);
+
+  // Store original image dimensions for eye position calculations
+  const originalImageDimsRef = useRef<{ width: number; height: number } | null>(null);
+  const canvasDimsRef = useRef<{ width: number; height: number }>({ width: 400, height: CANVAS_HEIGHT });
 
   const [scale, setScale] = useState(100);
   const [bgLoading, setBgLoading] = useState(false);
@@ -143,6 +152,13 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
       try {
         const bgImg = await loadHtmlImage(userPhoto);
         if (cancelled) return;
+
+        // Store original dimensions for eye position mapping
+        originalImageDimsRef.current = {
+          width: bgImg.naturalWidth || bgImg.width,
+          height: bgImg.naturalHeight || bgImg.height,
+        };
+        canvasDimsRef.current = { width, height: CANVAS_HEIGHT };
 
         const bgCanvas = coverToCanvas(bgImg, width, CANVAS_HEIGHT);
         const bgFabric = new fabric.FabricImage(bgCanvas, {
@@ -204,15 +220,60 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
         const targetH = Math.min(420, Math.max(180, Math.round(canvasHeight * 0.35)));
         const gCanvas = containToCanvas(gImg, targetW, targetH);
 
+        // Calculate position based on eye positions if available
+        let glassesLeft = canvasWidth / 2;
+        let glassesTop = canvasHeight * 0.35;
+        let glassesScale = (canvasWidth * 0.55) / (targetW || 1);
+        let glassesAngle = 0;
+
+        if (eyePositions && originalImageDimsRef.current) {
+          const origW = originalImageDimsRef.current.width;
+          const origH = originalImageDimsRef.current.height;
+          
+          // Calculate cover crop offset (same logic as coverToCanvas)
+          const scaleForCover = Math.max(canvasWidth / origW, canvasHeight / origH);
+          const cropW = canvasWidth / scaleForCover;
+          const cropH = canvasHeight / scaleForCover;
+          const cropOffsetX = (origW - cropW) / 2;
+          const cropOffsetY = (origH - cropH) / 2;
+
+          // Map normalized eye positions to canvas coordinates
+          const leftEyeCanvasX = ((eyePositions.leftEye.x * origW) - cropOffsetX) * scaleForCover;
+          const leftEyeCanvasY = ((eyePositions.leftEye.y * origH) - cropOffsetY) * scaleForCover;
+          const rightEyeCanvasX = ((eyePositions.rightEye.x * origW) - cropOffsetX) * scaleForCover;
+          const rightEyeCanvasY = ((eyePositions.rightEye.y * origH) - cropOffsetY) * scaleForCover;
+
+          // Center of glasses should be between the two eyes
+          glassesLeft = (leftEyeCanvasX + rightEyeCanvasX) / 2;
+          glassesTop = (leftEyeCanvasY + rightEyeCanvasY) / 2;
+
+          // Calculate distance between eyes to scale glasses appropriately
+          const eyeDistance = Math.sqrt(
+            Math.pow(rightEyeCanvasX - leftEyeCanvasX, 2) +
+            Math.pow(rightEyeCanvasY - leftEyeCanvasY, 2)
+          );
+
+          // Glasses width should be about 2.2x the eye distance
+          glassesScale = (eyeDistance * 2.2) / (targetW || 1);
+
+          // Calculate angle between eyes for rotation
+          glassesAngle = Math.atan2(
+            rightEyeCanvasY - leftEyeCanvasY,
+            rightEyeCanvasX - leftEyeCanvasX
+          ) * (180 / Math.PI);
+
+          console.log("[try-on] Auto-positioned glasses:", { glassesLeft, glassesTop, glassesScale, glassesAngle });
+        }
+
+        baseScaleRef.current = glassesScale;
+
         const img = new fabric.FabricImage(gCanvas, {
-          left: canvasWidth / 2,
-          top: canvasHeight * 0.35,
+          left: glassesLeft,
+          top: glassesTop,
           originX: "center",
           originY: "center",
+          angle: glassesAngle,
         });
-
-        const glassesScale = (canvasWidth * 0.55) / (img.width || 1);
-        baseScaleRef.current = glassesScale;
 
         const primary = "hsl(var(--primary))";
 
@@ -248,7 +309,7 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage }: GlassesTr
     return () => {
       cancelled = true;
     };
-  }, [open, glassesImage, bgLoading]);
+  }, [open, glassesImage, bgLoading, eyePositions]);
 
   const handleScaleChange = useCallback((values: number[]) => {
     const next = values[0];
