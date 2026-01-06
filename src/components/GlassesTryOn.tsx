@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as fabric from "fabric";
 import { RotateCcw, ZoomIn, ZoomOut, Move, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -23,352 +22,299 @@ interface GlassesTryOnProps {
   };
 }
 
-const CANVAS_HEIGHT = 400;
-
-function shouldSetCrossOrigin(src: string) {
-  return /^https?:\/\//i.test(src);
-}
-
-function loadHtmlImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    if (shouldSetCrossOrigin(src)) img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Failed to load image"));
-    img.src = src;
-  });
-}
-
-async function waitForNonZeroWidth(el: HTMLElement, fallback = 400) {
-  // Wait a couple frames for Dialog portal/layout to settle
-  for (let i = 0; i < 10; i++) {
-    const w = Math.round(el.clientWidth);
-    if (w > 10) return w;
-    await new Promise<void>((r) => requestAnimationFrame(() => r()));
-  }
-  return fallback;
-}
-
-function coverToCanvas(img: HTMLImageElement, outW: number, outH: number) {
-  const w = img.naturalWidth || img.width;
-  const h = img.naturalHeight || img.height;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = outW;
-  canvas.height = outH;
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx || !w || !h) return canvas;
-
-  const scale = Math.max(outW / w, outH / h);
-  const srcW = outW / scale;
-  const srcH = outH / scale;
-  const sx = Math.max(0, (w - srcW) / 2);
-  const sy = Math.max(0, (h - srcH) / 2);
-
-  ctx.drawImage(img, sx, sy, srcW, srcH, 0, 0, outW, outH);
-  return canvas;
-}
-
-function containToCanvas(img: HTMLImageElement, outW: number, outH: number) {
-  const w = img.naturalWidth || img.width;
-  const h = img.naturalHeight || img.height;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = outW;
-  canvas.height = outH;
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx || !w || !h) return canvas;
-
-  ctx.clearRect(0, 0, outW, outH);
-
-  const scale = Math.min(outW / w, outH / h);
-  const drawW = Math.max(1, Math.round(w * scale));
-  const drawH = Math.max(1, Math.round(h * scale));
-  const dx = Math.round((outW - drawW) / 2);
-  const dy = Math.round((outH - drawH) / 2);
-
-  ctx.drawImage(img, 0, 0, w, h, dx, dy, drawW, drawH);
-  return canvas;
-}
+const CONTAINER_HEIGHT = 400;
 
 const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePositions }: GlassesTryOnProps) => {
   const { language } = useLanguage();
+  
+  const containerRef = useRef<HTMLDivElement>(null);
+  const glassesRef = useRef<HTMLImageElement>(null);
+  
+  const [containerWidth, setContainerWidth] = useState(400);
+  const [bgLoaded, setBgLoaded] = useState(false);
+  const [glassesLoaded, setGlassesLoaded] = useState(false);
+  const [bgError, setBgError] = useState(false);
+  
+  // Glasses positioning state
+  const [glassesPos, setGlassesPos] = useState({ x: 0, y: 0 });
+  const [glassesScale, setGlassesScale] = useState(1);
+  const [baseScale, setBaseScale] = useState(1);
+  const [glassesAngle, setGlassesAngle] = useState(0);
+  const [sliderValue, setSliderValue] = useState(100);
+  
+  // Drag state
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const posStartRef = useRef({ x: 0, y: 0 });
+  
+  // Image dimensions for eye position calculations
+  const [imageDims, setImageDims] = useState<{ natural: { w: number; h: number }; displayed: { w: number; h: number } } | null>(null);
 
-  const canvasElRef = useRef<HTMLCanvasElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
-
-  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
-  const glassesObjRef = useRef<fabric.FabricImage | null>(null);
-  const baseScaleRef = useRef(1);
-
-  // Store original image dimensions for eye position calculations
-  const originalImageDimsRef = useRef<{ width: number; height: number } | null>(null);
-  const canvasDimsRef = useRef<{ width: number; height: number }>({ width: 400, height: CANVAS_HEIGHT });
-
-  const [scale, setScale] = useState(100);
-  const [bgLoading, setBgLoading] = useState(false);
-  const [glassesLoading, setGlassesLoading] = useState(false);
-  const [bgError, setBgError] = useState<string | null>(null);
-
-  // Init canvas + background
+  // Get container width when dialog opens
   useEffect(() => {
     if (!open) return;
-    if (!canvasElRef.current || !stageRef.current) return;
-
-    let cancelled = false;
-
-    (async () => {
-      setBgError(null);
-      setBgLoading(true);
-
-      const width = await waitForNonZeroWidth(stageRef.current!, 400);
-      if (cancelled) return;
-
-      // Hard reset
-      if (fabricCanvasRef.current) {
-        fabricCanvasRef.current.dispose();
-        fabricCanvasRef.current = null;
+    
+    const updateWidth = () => {
+      if (containerRef.current) {
+        const w = containerRef.current.clientWidth;
+        if (w > 10) setContainerWidth(w);
       }
-      glassesObjRef.current = null;
-      baseScaleRef.current = 1;
-      setScale(100);
-
-      // Ensure element has proper backstore dimensions first
-      canvasElRef.current!.width = width;
-      canvasElRef.current!.height = CANVAS_HEIGHT;
-
-      const canvas = new fabric.Canvas(canvasElRef.current!, {
-        width,
-        height: CANVAS_HEIGHT,
-        selection: false,
-        enableRetinaScaling: false,
-        imageSmoothingEnabled: true,
-        backgroundColor: "hsl(var(--muted))",
-      });
-      fabricCanvasRef.current = canvas;
-
-      try {
-        const bgImg = await loadHtmlImage(userPhoto);
-        if (cancelled) return;
-
-        // Store original dimensions for eye position mapping
-        originalImageDimsRef.current = {
-          width: bgImg.naturalWidth || bgImg.width,
-          height: bgImg.naturalHeight || bgImg.height,
-        };
-        canvasDimsRef.current = { width, height: CANVAS_HEIGHT };
-
-        const bgCanvas = coverToCanvas(bgImg, width, CANVAS_HEIGHT);
-        const bgFabric = new fabric.FabricImage(bgCanvas, {
-          left: width / 2,
-          top: CANVAS_HEIGHT / 2,
-          originX: "center",
-          originY: "center",
-          selectable: false,
-          evented: false,
-        });
-
-        canvas.backgroundImage = bgFabric;
-        canvas.requestRenderAll();
-      } catch (e) {
-        console.error("[try-on] background load failed", e);
-        setBgError(language === "pt" ? "Não consegui carregar sua foto." : "Could not load your photo.");
-      } finally {
-        if (!cancelled) setBgLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      setBgLoading(false);
-      setGlassesLoading(false);
-
-      if (fabricCanvasRef.current) {
-        fabricCanvasRef.current.dispose();
-        fabricCanvasRef.current = null;
-      }
-      glassesObjRef.current = null;
     };
-  }, [open, userPhoto, language]);
+    
+    // Wait for dialog to render
+    const timer = setTimeout(updateWidth, 100);
+    window.addEventListener('resize', updateWidth);
+    
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updateWidth);
+    };
+  }, [open]);
 
-  // Load glasses
+  // Reset state when dialog opens
   useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    if (!open || !canvas || !glassesImage) return;
-    if (bgLoading) return;
+    if (open) {
+      setBgLoaded(false);
+      setGlassesLoaded(false);
+      setBgError(false);
+      setSliderValue(100);
+      setGlassesAngle(0);
+    }
+  }, [open, userPhoto, glassesImage]);
 
-    let cancelled = false;
+  // Calculate glasses position when background loads
+  const handleBgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const naturalW = img.naturalWidth;
+    const naturalH = img.naturalHeight;
+    const displayedW = img.clientWidth;
+    const displayedH = img.clientHeight;
+    
+    setImageDims({
+      natural: { w: naturalW, h: naturalH },
+      displayed: { w: displayedW, h: displayedH }
+    });
+    
+    setBgLoaded(true);
+  }, []);
 
-    (async () => {
-      setGlassesLoading(true);
-      try {
-        if (glassesObjRef.current) {
-          canvas.remove(glassesObjRef.current);
-          glassesObjRef.current = null;
-        }
+  // Position glasses when background and glasses are loaded
+  useEffect(() => {
+    if (!bgLoaded || !glassesLoaded || !imageDims || !glassesRef.current) return;
+    
+    const glassesEl = glassesRef.current;
+    const glassesNaturalW = glassesEl.naturalWidth;
+    
+    const displayedW = imageDims.displayed.w;
+    const displayedH = imageDims.displayed.h;
+    
+    // Calculate offset for the image within the container (object-cover centering)
+    const containerAspect = containerWidth / CONTAINER_HEIGHT;
+    const imageAspect = imageDims.natural.w / imageDims.natural.h;
+    
+    let offsetX = 0;
+    let offsetY = 0;
+    let effectiveW = containerWidth;
+    let effectiveH = CONTAINER_HEIGHT;
+    
+    if (imageAspect > containerAspect) {
+      // Image is wider - cropped on sides
+      effectiveW = CONTAINER_HEIGHT * imageAspect;
+      offsetX = (effectiveW - containerWidth) / 2;
+    } else {
+      // Image is taller - cropped on top/bottom
+      effectiveH = containerWidth / imageAspect;
+      offsetY = (effectiveH - CONTAINER_HEIGHT) / 2;
+    }
+    
+    if (eyePositions) {
+      // Map normalized eye positions to container coordinates
+      const leftEyeX = eyePositions.leftEye.x * effectiveW - offsetX;
+      const leftEyeY = eyePositions.leftEye.y * effectiveH - offsetY;
+      const rightEyeX = eyePositions.rightEye.x * effectiveW - offsetX;
+      const rightEyeY = eyePositions.rightEye.y * effectiveH - offsetY;
+      
+      // Center position between eyes
+      const centerX = (leftEyeX + rightEyeX) / 2;
+      const centerY = (leftEyeY + rightEyeY) / 2;
+      
+      // Eye distance for scaling
+      const eyeDistance = Math.sqrt(
+        Math.pow(rightEyeX - leftEyeX, 2) + 
+        Math.pow(rightEyeY - leftEyeY, 2)
+      );
+      
+      // Glasses should be about 2.2x the eye distance
+      const targetGlassesWidth = eyeDistance * 2.2;
+      const scale = targetGlassesWidth / glassesNaturalW;
+      
+      // Calculate angle
+      const angle = Math.atan2(rightEyeY - leftEyeY, rightEyeX - leftEyeX) * (180 / Math.PI);
+      
+      setGlassesPos({ x: centerX, y: centerY });
+      setBaseScale(scale);
+      setGlassesScale(scale);
+      setGlassesAngle(angle);
+      
+      console.log("[try-on] Auto-positioned:", { centerX, centerY, scale, angle, eyeDistance });
+    } else {
+      // Default positioning - center of upper third
+      setGlassesPos({ x: containerWidth / 2, y: CONTAINER_HEIGHT * 0.35 });
+      const scale = (containerWidth * 0.5) / glassesNaturalW;
+      setBaseScale(scale);
+      setGlassesScale(scale);
+      setGlassesAngle(0);
+    }
+  }, [bgLoaded, glassesLoaded, imageDims, eyePositions, containerWidth]);
 
-        const gImg = await loadHtmlImage(glassesImage);
-        if (cancelled) return;
-
-        const canvasWidth = canvas.width || 400;
-        const canvasHeight = canvas.height || CANVAS_HEIGHT;
-
-        // Downscale for smooth dragging on mobile
-        const targetW = Math.min(720, Math.max(280, Math.round(canvasWidth * 0.8)));
-        const targetH = Math.min(420, Math.max(180, Math.round(canvasHeight * 0.35)));
-        const gCanvas = containToCanvas(gImg, targetW, targetH);
-
-        // Calculate position based on eye positions if available
-        let glassesLeft = canvasWidth / 2;
-        let glassesTop = canvasHeight * 0.35;
-        let glassesScale = (canvasWidth * 0.55) / (targetW || 1);
-        let glassesAngle = 0;
-
-        if (eyePositions && originalImageDimsRef.current) {
-          const origW = originalImageDimsRef.current.width;
-          const origH = originalImageDimsRef.current.height;
-          
-          // Calculate cover crop offset (same logic as coverToCanvas)
-          const scaleForCover = Math.max(canvasWidth / origW, canvasHeight / origH);
-          const cropW = canvasWidth / scaleForCover;
-          const cropH = canvasHeight / scaleForCover;
-          const cropOffsetX = (origW - cropW) / 2;
-          const cropOffsetY = (origH - cropH) / 2;
-
-          // Map normalized eye positions to canvas coordinates
-          const leftEyeCanvasX = ((eyePositions.leftEye.x * origW) - cropOffsetX) * scaleForCover;
-          const leftEyeCanvasY = ((eyePositions.leftEye.y * origH) - cropOffsetY) * scaleForCover;
-          const rightEyeCanvasX = ((eyePositions.rightEye.x * origW) - cropOffsetX) * scaleForCover;
-          const rightEyeCanvasY = ((eyePositions.rightEye.y * origH) - cropOffsetY) * scaleForCover;
-
-          // Center of glasses should be between the two eyes
-          glassesLeft = (leftEyeCanvasX + rightEyeCanvasX) / 2;
-          glassesTop = (leftEyeCanvasY + rightEyeCanvasY) / 2;
-
-          // Calculate distance between eyes to scale glasses appropriately
-          const eyeDistance = Math.sqrt(
-            Math.pow(rightEyeCanvasX - leftEyeCanvasX, 2) +
-            Math.pow(rightEyeCanvasY - leftEyeCanvasY, 2)
-          );
-
-          // Glasses width should be about 2.2x the eye distance
-          glassesScale = (eyeDistance * 2.2) / (targetW || 1);
-
-          // Calculate angle between eyes for rotation
-          glassesAngle = Math.atan2(
-            rightEyeCanvasY - leftEyeCanvasY,
-            rightEyeCanvasX - leftEyeCanvasX
-          ) * (180 / Math.PI);
-
-          console.log("[try-on] Auto-positioned glasses:", { glassesLeft, glassesTop, glassesScale, glassesAngle });
-        }
-
-        baseScaleRef.current = glassesScale;
-
-        const img = new fabric.FabricImage(gCanvas, {
-          left: glassesLeft,
-          top: glassesTop,
-          originX: "center",
-          originY: "center",
-          angle: glassesAngle,
-        });
-
-        const primary = "hsl(var(--primary))";
-
-        img.set({
-          scaleX: glassesScale,
-          scaleY: glassesScale,
-          // reduce "fundo branco" when the PNG isn't transparent
-          globalCompositeOperation: "multiply",
-          hasControls: true,
-          hasBorders: true,
-          lockUniScaling: true,
-          cornerColor: primary,
-          cornerStrokeColor: primary,
-          borderColor: primary,
-          cornerSize: 12,
-          transparentCorners: false,
-          cornerStyle: "circle",
-        });
-
-        canvas.add(img);
-        canvas.setActiveObject(img);
-        canvas.requestRenderAll();
-
-        glassesObjRef.current = img;
-        setScale(100);
-      } catch (e) {
-        console.error("[try-on] glasses load failed", e);
-      } finally {
-        if (!cancelled) setGlassesLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, glassesImage, bgLoading, eyePositions]);
+  const handleGlassesLoad = useCallback(() => {
+    setGlassesLoaded(true);
+  }, []);
 
   const handleScaleChange = useCallback((values: number[]) => {
-    const next = values[0];
-    setScale(next);
-
-    const glasses = glassesObjRef.current;
-    const canvas = fabricCanvasRef.current;
-    if (!glasses || !canvas) return;
-
-    const s = baseScaleRef.current * (next / 100);
-    glasses.set({ scaleX: s, scaleY: s });
-    canvas.requestRenderAll();
-  }, []);
+    const val = values[0];
+    setSliderValue(val);
+    setGlassesScale(baseScale * (val / 100));
+  }, [baseScale]);
 
   const handleReset = useCallback(() => {
-    const glasses = glassesObjRef.current;
-    const canvas = fabricCanvasRef.current;
-    if (!glasses || !canvas) return;
+    setSliderValue(100);
+    setGlassesScale(baseScale);
+    
+    if (eyePositions && imageDims) {
+      // Recalculate position from eye positions
+      const containerAspect = containerWidth / CONTAINER_HEIGHT;
+      const imageAspect = imageDims.natural.w / imageDims.natural.h;
+      
+      let offsetX = 0;
+      let offsetY = 0;
+      let effectiveW = containerWidth;
+      let effectiveH = CONTAINER_HEIGHT;
+      
+      if (imageAspect > containerAspect) {
+        effectiveW = CONTAINER_HEIGHT * imageAspect;
+        offsetX = (effectiveW - containerWidth) / 2;
+      } else {
+        effectiveH = containerWidth / imageAspect;
+        offsetY = (effectiveH - CONTAINER_HEIGHT) / 2;
+      }
+      
+      const leftEyeX = eyePositions.leftEye.x * effectiveW - offsetX;
+      const leftEyeY = eyePositions.leftEye.y * effectiveH - offsetY;
+      const rightEyeX = eyePositions.rightEye.x * effectiveW - offsetX;
+      const rightEyeY = eyePositions.rightEye.y * effectiveH - offsetY;
+      
+      const centerX = (leftEyeX + rightEyeX) / 2;
+      const centerY = (leftEyeY + rightEyeY) / 2;
+      const angle = Math.atan2(rightEyeY - leftEyeY, rightEyeX - leftEyeX) * (180 / Math.PI);
+      
+      setGlassesPos({ x: centerX, y: centerY });
+      setGlassesAngle(angle);
+    } else {
+      setGlassesPos({ x: containerWidth / 2, y: CONTAINER_HEIGHT * 0.35 });
+      setGlassesAngle(0);
+    }
+  }, [baseScale, eyePositions, imageDims, containerWidth]);
 
-    const canvasWidth = canvas.width || 400;
-    const canvasHeight = canvas.height || CANVAS_HEIGHT;
+  // Drag handlers
+  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    dragStartRef.current = { x: clientX, y: clientY };
+    posStartRef.current = { ...glassesPos };
+  }, [glassesPos]);
 
-    glasses.set({
-      left: canvasWidth / 2,
-      top: canvasHeight * 0.35,
-      scaleX: baseScaleRef.current,
-      scaleY: baseScaleRef.current,
-      angle: 0,
+  const handleDragMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDragging) return;
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    const dx = clientX - dragStartRef.current.x;
+    const dy = clientY - dragStartRef.current.y;
+    
+    setGlassesPos({
+      x: posStartRef.current.x + dx,
+      y: posStartRef.current.y + dy
     });
-    canvas.requestRenderAll();
-    setScale(100);
+  }, [isDragging]);
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
   }, []);
 
-  const isBusy = bgLoading || glassesLoading;
+  const isLoading = !bgLoaded || !glassesLoaded;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden" aria-describedby="try-on-description">
+      <DialogContent className="max-w-lg p-0 overflow-hidden">
         <div className="p-4 pb-2 flex flex-col space-y-1.5 text-center sm:text-left">
           <DialogTitle>
             {language === "pt" ? "Experimente os Óculos" : "Try On Glasses"}
           </DialogTitle>
-          <DialogDescription id="try-on-description">
+          <DialogDescription>
             {language === "pt"
-              ? "Arraste para mover, use as alças para redimensionar"
-              : "Drag to move, use handles to resize"}
+              ? "Arraste para mover, use o slider para redimensionar"
+              : "Drag to move, use slider to resize"}
           </DialogDescription>
         </div>
 
-        <div ref={stageRef} className="relative w-full bg-muted" style={{ height: `${CANVAS_HEIGHT}px` }}>
-          <canvas ref={canvasElRef} className="w-full h-full block touch-none" />
+        <div 
+          ref={containerRef}
+          className="relative w-full bg-muted overflow-hidden select-none"
+          style={{ height: `${CONTAINER_HEIGHT}px` }}
+          onMouseMove={handleDragMove}
+          onMouseUp={handleDragEnd}
+          onMouseLeave={handleDragEnd}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+        >
+          {/* Background photo */}
+          <img
+            src={userPhoto}
+            alt="Your photo"
+            className="absolute inset-0 w-full h-full object-cover"
+            onLoad={handleBgLoad}
+            onError={() => setBgError(true)}
+            draggable={false}
+          />
+          
+          {/* Glasses overlay */}
+          {glassesImage && bgLoaded && (
+            <img
+              ref={glassesRef}
+              src={glassesImage}
+              alt="Glasses"
+              className="absolute cursor-move touch-none"
+              style={{
+                left: glassesPos.x,
+                top: glassesPos.y,
+                transform: `translate(-50%, -50%) scale(${glassesScale}) rotate(${glassesAngle}deg)`,
+                mixBlendMode: 'multiply',
+                opacity: glassesLoaded ? 1 : 0,
+                transition: isDragging ? 'none' : 'opacity 0.2s',
+                pointerEvents: 'auto',
+              }}
+              onLoad={handleGlassesLoad}
+              onMouseDown={handleDragStart}
+              onTouchStart={handleDragStart}
+              draggable={false}
+            />
+          )}
 
-          {(isBusy || bgError) && (
-            <div className="absolute inset-0 grid place-items-center bg-background/40 backdrop-blur-sm">
+          {/* Loading overlay */}
+          {(isLoading || bgError) && (
+            <div className="absolute inset-0 grid place-items-center bg-background/60 backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {isBusy && <Loader2 className="h-4 w-4 animate-spin" />}
+                {!bgError && <Loader2 className="h-5 w-5 animate-spin" />}
                 <span>
-                  {bgError ||
-                    (language === "pt" ? "Carregando..." : "Loading...")}
+                  {bgError 
+                    ? (language === "pt" ? "Erro ao carregar foto" : "Error loading photo")
+                    : (language === "pt" ? "Carregando..." : "Loading...")}
                 </span>
               </div>
             </div>
@@ -379,13 +325,13 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
           <div className="flex items-center gap-4">
             <ZoomOut className="w-4 h-4 text-muted-foreground" />
             <Slider
-              value={[scale]}
+              value={[sliderValue]}
               onValueChange={handleScaleChange}
               min={50}
               max={200}
               step={5}
               className="flex-1"
-              disabled={bgLoading || !!bgError}
+              disabled={isLoading || bgError}
             />
             <ZoomIn className="w-4 h-4 text-muted-foreground" />
           </div>
@@ -396,7 +342,7 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
               size="sm"
               onClick={handleReset}
               className="flex-1"
-              disabled={bgLoading || !!bgError}
+              disabled={isLoading || bgError}
             >
               <RotateCcw className="w-4 h-4 mr-2" />
               {language === "pt" ? "Resetar" : "Reset"}
