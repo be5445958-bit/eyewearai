@@ -62,28 +62,45 @@ serve(async (req) => {
 
     const imageUrl = signed.signedUrl;
 
-const systemPrompt = `Você é um especialista em análise facial e recomendação de óculos. Analise a foto do rosto e forneça:
+const systemPrompt = `Você é um especialista em análise facial e recomendação de óculos com foco em detecção precisa de landmarks faciais. Analise a foto do rosto e forneça:
 
 1. **Formato do Rosto**: Identifique se é oval, redondo, quadrado, retangular, coração, diamante ou oblongo
 2. **Tom de Pele**: Classifique como claro, médio, oliva, moreno ou escuro
 3. **Características Faciais**: Note características marcantes (maçãs do rosto, queixo, testa, etc)
-4. **Recomendações de Óculos**: Sugira 3-5 estilos de armação que combinariam melhor, explicando por quê
-5. **Posição dos Olhos**: Forneça as coordenadas NORMALIZADAS (0-1) do centro de cada olho na imagem. O ponto (0,0) é o canto superior esquerdo e (1,1) é o canto inferior direito.
+4. **Landmarks Faciais Detalhados**: Forneça coordenadas NORMALIZADAS (0-1) para múltiplos pontos de referência. O ponto (0,0) é o canto superior esquerdo e (1,1) é o canto inferior direito.
+   - Centro de cada olho
+   - Ponte do nariz (entre os olhos)
+   - Topo do nariz
+   - Posição aproximada das orelhas (se visíveis)
+   - Centro de cada sobrancelha
+   - Ângulo de rotação da cabeça (inclinação lateral em graus)
+   - Largura normalizada do rosto
+5. **Recomendações de Óculos**: Sugira 3-5 estilos de armação que combinariam melhor
 
 Para cada recomendação de óculos, inclua:
-- Nome do estilo (ex: Aviador, Wayfarer, Redondo, Cat-Eye, etc)
+- Nome do estilo (ex: Aviador, Wayfarer, Redondo, Cat-Eye, Retangular, Oval, Clubmaster, Geométrico)
 - Por que combina com esse formato de rosto
 - Cores de armação recomendadas
 - Pontuação de compatibilidade de 1-100
+
+IMPORTANTE: Seja muito preciso com as coordenadas dos landmarks. Os óculos serão posicionados automaticamente baseado nesses pontos.
 
 Responda em JSON com esta estrutura exata:
 {
   "faceShape": "formato identificado",
   "skinTone": "tom de pele",
   "facialFeatures": "descrição das características",
-  "eyePositions": {
+  "facialLandmarks": {
     "leftEye": { "x": 0.35, "y": 0.40 },
-    "rightEye": { "x": 0.65, "y": 0.40 }
+    "rightEye": { "x": 0.65, "y": 0.40 },
+    "noseBridge": { "x": 0.50, "y": 0.42 },
+    "noseTop": { "x": 0.50, "y": 0.50 },
+    "leftEar": { "x": 0.15, "y": 0.45 },
+    "rightEar": { "x": 0.85, "y": 0.45 },
+    "leftEyebrow": { "x": 0.35, "y": 0.35 },
+    "rightEyebrow": { "x": 0.65, "y": 0.35 },
+    "faceRotation": 0,
+    "faceWidth": 0.70
   },
   "recommendations": [
     {
@@ -93,7 +110,12 @@ Responda em JSON com esta estrutura exata:
       "compatibilityScore": 95
     }
   ]
-}`;
+}
+
+Notas sobre coordenadas:
+- Se a orelha não estiver visível, estime baseado na posição típica relativa aos olhos
+- faceRotation: ângulo de inclinação da cabeça em graus (-30 a +30, 0 = reto)
+- faceWidth: largura do rosto como fração da imagem (tipicamente 0.5 a 0.8)`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
