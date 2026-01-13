@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { RotateCcw, ZoomIn, ZoomOut, Move, Loader2, RotateCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  RotateCcw,
+  ZoomIn,
+  ZoomOut,
+  Move,
+  Loader2,
+  RotateCw,
+  Eye,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { EyePosition } from "./PhotoUpload";
+import { prepareGlassesImage } from "@/lib/prepareGlassesImage";
 
 interface GlassesTryOnProps {
   open: boolean;
@@ -23,66 +34,158 @@ interface GlassesTryOnProps {
 }
 
 const CONTAINER_HEIGHT = 450;
+const SCALE_MIN = 50;
+const SCALE_MAX = 200;
+const ROT_MIN = -60;
+const ROT_MAX = 60;
+const OPACITY_MIN = 40;
+const OPACITY_MAX = 100;
 
-const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePositions }: GlassesTryOnProps) => {
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+type Point = { x: number; y: number };
+
+const dist = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
+const angleDeg = (a: Point, b: Point) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+const center = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+type GestureState =
+  | {
+      kind: "drag";
+      startPointer: Point;
+      startPos: Point;
+    }
+  | {
+      kind: "pinch";
+      startCenter: Point;
+      startPos: Point;
+      startDist: number;
+      startAngle: number;
+      startScaleSlider: number;
+      startRotationSlider: number;
+    };
+
+const GlassesTryOn = ({
+  open,
+  onOpenChange,
+  userPhoto,
+  glassesImage,
+  eyePositions,
+}: GlassesTryOnProps) => {
   const { language } = useLanguage();
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
   const glassesRef = useRef<HTMLImageElement>(null);
-  
+
   const [containerWidth, setContainerWidth] = useState(400);
   const [bgLoaded, setBgLoaded] = useState(false);
   const [glassesLoaded, setGlassesLoaded] = useState(false);
   const [bgError, setBgError] = useState(false);
-  
+
   // Glasses positioning state
-  const [glassesPos, setGlassesPos] = useState({ x: 0, y: 0 });
-  const [glassesScale, setGlassesScale] = useState(1);
+  const [glassesPos, setGlassesPos] = useState<Point>({ x: 0, y: 0 });
   const [baseScale, setBaseScale] = useState(1);
-  const [glassesAngle, setGlassesAngle] = useState(0);
   const [baseAngle, setBaseAngle] = useState(0);
   const [scaleSlider, setScaleSlider] = useState(100);
   const [rotationSlider, setRotationSlider] = useState(0);
-  
-  // Drag state
+  const [opacitySlider, setOpacitySlider] = useState(92);
+  const [realisticBlend, setRealisticBlend] = useState(true);
+
   const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef({ x: 0, y: 0 });
-  const posStartRef = useRef({ x: 0, y: 0 });
-  
+
+  // Prepared glasses src (remove white background + crop)
+  const glassesCacheRef = useRef(new Map<string, string>());
+  const [preparedGlassesSrc, setPreparedGlassesSrc] = useState<string | null>(null);
+  const [isPreparingGlasses, setIsPreparingGlasses] = useState(false);
+
+  const glassesSrc = preparedGlassesSrc ?? glassesImage;
+
   // Image dimensions for eye position calculations
-  const [imageDims, setImageDims] = useState<{ natural: { w: number; h: number }; displayed: { w: number; h: number } } | null>(null);
+  const [imageDims, setImageDims] = useState<{
+    natural: { w: number; h: number };
+    displayed: { w: number; h: number };
+  } | null>(null);
+
+  const computedScale = useMemo(() => baseScale * (scaleSlider / 100), [baseScale, scaleSlider]);
+  const computedAngle = useMemo(() => baseAngle + rotationSlider, [baseAngle, rotationSlider]);
+  const computedOpacity = useMemo(() => clamp(opacitySlider / 100, 0, 1), [opacitySlider]);
 
   // Get container width when dialog opens
   useEffect(() => {
     if (!open) return;
-    
+
     const updateWidth = () => {
       if (containerRef.current) {
         const w = containerRef.current.clientWidth;
         if (w > 10) setContainerWidth(w);
       }
     };
-    
-    // Wait for dialog to render
-    const timer = setTimeout(updateWidth, 100);
-    window.addEventListener('resize', updateWidth);
-    
+
+    const timer = window.setTimeout(updateWidth, 100);
+    window.addEventListener("resize", updateWidth);
+
     return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', updateWidth);
+      window.clearTimeout(timer);
+      window.removeEventListener("resize", updateWidth);
     };
   }, [open]);
 
   // Reset state when dialog opens
   useEffect(() => {
-    if (open) {
-      setBgLoaded(false);
-      setGlassesLoaded(false);
-      setBgError(false);
-      setScaleSlider(100);
-      setRotationSlider(0);
-    }
+    if (!open) return;
+    setBgLoaded(false);
+    setGlassesLoaded(false);
+    setBgError(false);
+    setScaleSlider(100);
+    setRotationSlider(0);
+    setOpacitySlider(92);
+    setRealisticBlend(true);
+    setPreparedGlassesSrc(null);
+    setIsPreparingGlasses(false);
+    setIsDragging(false);
   }, [open, userPhoto, glassesImage]);
+
+  // Prepare glasses PNG (remove white background + crop) for better realism
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (!open || !glassesImage) {
+        setPreparedGlassesSrc(null);
+        setIsPreparingGlasses(false);
+        return;
+      }
+
+      const cached = glassesCacheRef.current.get(glassesImage);
+      if (cached) {
+        setPreparedGlassesSrc(cached);
+        setIsPreparingGlasses(false);
+        return;
+      }
+
+      setIsPreparingGlasses(true);
+      setPreparedGlassesSrc(null);
+
+      try {
+        const processed = await prepareGlassesImage(glassesImage);
+        if (cancelled) return;
+        glassesCacheRef.current.set(glassesImage, processed);
+        setPreparedGlassesSrc(processed);
+      } catch {
+        if (cancelled) return;
+        // Fallback to the original image if processing fails
+        setPreparedGlassesSrc(glassesImage);
+      } finally {
+        if (!cancelled) setIsPreparingGlasses(false);
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, glassesImage]);
 
   // Calculate glasses position when background loads
   const handleBgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -91,31 +194,41 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
     const naturalH = img.naturalHeight;
     const displayedW = img.clientWidth;
     const displayedH = img.clientHeight;
-    
+
     setImageDims({
       natural: { w: naturalW, h: naturalH },
-      displayed: { w: displayedW, h: displayedH }
+      displayed: { w: displayedW, h: displayedH },
     });
-    
+
     setBgLoaded(true);
   }, []);
+
+  const handleGlassesLoad = useCallback(() => {
+    setGlassesLoaded(true);
+  }, []);
+
+  // When glasses source changes, mark as not loaded until onLoad fires
+  useEffect(() => {
+    if (!open) return;
+    setGlassesLoaded(false);
+  }, [open, glassesSrc]);
 
   // Position glasses when background and glasses are loaded
   useEffect(() => {
     if (!bgLoaded || !glassesLoaded || !imageDims || !glassesRef.current) return;
-    
+
     const glassesEl = glassesRef.current;
     const glassesNaturalW = glassesEl.naturalWidth;
-    
+
     // Calculate offset for the image within the container (object-cover centering)
     const containerAspect = containerWidth / CONTAINER_HEIGHT;
     const imageAspect = imageDims.natural.w / imageDims.natural.h;
-    
+
     let offsetX = 0;
     let offsetY = 0;
     let effectiveW = containerWidth;
     let effectiveH = CONTAINER_HEIGHT;
-    
+
     if (imageAspect > containerAspect) {
       // Image is wider - cropped on sides
       effectiveW = CONTAINER_HEIGHT * imageAspect;
@@ -125,81 +238,70 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
       effectiveH = containerWidth / imageAspect;
       offsetY = (effectiveH - CONTAINER_HEIGHT) / 2;
     }
-    
+
     if (eyePositions) {
-      // Map normalized eye positions to container coordinates
       const leftEyeX = eyePositions.leftEye.x * effectiveW - offsetX;
       const leftEyeY = eyePositions.leftEye.y * effectiveH - offsetY;
       const rightEyeX = eyePositions.rightEye.x * effectiveW - offsetX;
       const rightEyeY = eyePositions.rightEye.y * effectiveH - offsetY;
-      
-      // Center position between eyes
+
       const centerX = (leftEyeX + rightEyeX) / 2;
       const centerY = (leftEyeY + rightEyeY) / 2;
-      
-      // Eye distance for scaling
-      const eyeDistance = Math.sqrt(
-        Math.pow(rightEyeX - leftEyeX, 2) + 
-        Math.pow(rightEyeY - leftEyeY, 2)
-      );
-      
-      // Glasses should be about 2.4x the eye distance for realistic fit
+
+      const eyeDistance = Math.hypot(rightEyeX - leftEyeX, rightEyeY - leftEyeY);
+
+      // Glasses should be about 2.4x the eye distance for a more realistic fit
       const targetGlassesWidth = eyeDistance * 2.4;
       const scale = targetGlassesWidth / glassesNaturalW;
-      
-      // Calculate angle from eye positions
-      const angle = Math.atan2(rightEyeY - leftEyeY, rightEyeX - leftEyeX) * (180 / Math.PI);
-      
+
+      const angle = angleDeg({ x: leftEyeX, y: leftEyeY }, { x: rightEyeX, y: rightEyeY });
+
       setGlassesPos({ x: centerX, y: centerY });
       setBaseScale(scale);
-      setGlassesScale(scale);
       setBaseAngle(angle);
-      setGlassesAngle(angle);
-      
-      console.log("[try-on] Auto-positioned:", { centerX, centerY, scale, angle, eyeDistance });
     } else {
       // Default positioning - center of upper third
       setGlassesPos({ x: containerWidth / 2, y: CONTAINER_HEIGHT * 0.35 });
-      const scale = (containerWidth * 0.5) / glassesNaturalW;
-      setBaseScale(scale);
-      setGlassesScale(scale);
+      setBaseScale((containerWidth * 0.5) / glassesNaturalW);
       setBaseAngle(0);
-      setGlassesAngle(0);
     }
   }, [bgLoaded, glassesLoaded, imageDims, eyePositions, containerWidth]);
 
-  const handleGlassesLoad = useCallback(() => {
-    setGlassesLoaded(true);
-  }, []);
+  const handleScaleChange = useCallback(
+    (values: number[]) => {
+      setScaleSlider(values[0]);
+    },
+    [setScaleSlider]
+  );
 
-  const handleScaleChange = useCallback((values: number[]) => {
-    const val = values[0];
-    setScaleSlider(val);
-    setGlassesScale(baseScale * (val / 100));
-  }, [baseScale]);
+  const handleRotationChange = useCallback(
+    (values: number[]) => {
+      setRotationSlider(values[0]);
+    },
+    [setRotationSlider]
+  );
 
-  const handleRotationChange = useCallback((values: number[]) => {
-    const val = values[0];
-    setRotationSlider(val);
-    setGlassesAngle(baseAngle + val);
-  }, [baseAngle]);
+  const handleOpacityChange = useCallback(
+    (values: number[]) => {
+      setOpacitySlider(values[0]);
+    },
+    [setOpacitySlider]
+  );
 
   const handleReset = useCallback(() => {
     setScaleSlider(100);
     setRotationSlider(0);
-    setGlassesScale(baseScale);
-    setGlassesAngle(baseAngle);
-    
+    setOpacitySlider(92);
+
     if (eyePositions && imageDims) {
-      // Recalculate position from eye positions
       const containerAspect = containerWidth / CONTAINER_HEIGHT;
       const imageAspect = imageDims.natural.w / imageDims.natural.h;
-      
+
       let offsetX = 0;
       let offsetY = 0;
       let effectiveW = containerWidth;
       let effectiveH = CONTAINER_HEIGHT;
-      
+
       if (imageAspect > containerAspect) {
         effectiveW = CONTAINER_HEIGHT * imageAspect;
         offsetX = (effectiveW - containerWidth) / 2;
@@ -207,53 +309,127 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
         effectiveH = containerWidth / imageAspect;
         offsetY = (effectiveH - CONTAINER_HEIGHT) / 2;
       }
-      
+
       const leftEyeX = eyePositions.leftEye.x * effectiveW - offsetX;
       const leftEyeY = eyePositions.leftEye.y * effectiveH - offsetY;
       const rightEyeX = eyePositions.rightEye.x * effectiveW - offsetX;
       const rightEyeY = eyePositions.rightEye.y * effectiveH - offsetY;
-      
-      const centerX = (leftEyeX + rightEyeX) / 2;
-      const centerY = (leftEyeY + rightEyeY) / 2;
-      
-      setGlassesPos({ x: centerX, y: centerY });
+
+      setGlassesPos({ x: (leftEyeX + rightEyeX) / 2, y: (leftEyeY + rightEyeY) / 2 });
     } else {
       setGlassesPos({ x: containerWidth / 2, y: CONTAINER_HEIGHT * 0.35 });
     }
-  }, [baseScale, baseAngle, eyePositions, imageDims, containerWidth]);
+  }, [eyePositions, imageDims, containerWidth]);
 
-  // Drag handlers
-  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    
-    dragStartRef.current = { x: clientX, y: clientY };
-    posStartRef.current = { ...glassesPos };
-  }, [glassesPos]);
+  // Pointer-based drag + pinch (scale/rotate) gestures (mobile-friendly)
+  const pointersRef = useRef(new Map<number, Point>());
+  const gestureRef = useRef<GestureState | null>(null);
 
-  const handleDragMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDragging) return;
-    
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    
-    const dx = clientX - dragStartRef.current.x;
-    const dy = clientY - dragStartRef.current.y;
-    
-    setGlassesPos({
-      x: posStartRef.current.x + dx,
-      y: posStartRef.current.y + dy
-    });
-  }, [isDragging]);
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLImageElement>) => {
+      e.preventDefault();
 
-  const handleDragEnd = useCallback(() => {
-    setIsDragging(false);
+      const el = e.currentTarget;
+      el.setPointerCapture(e.pointerId);
+
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      const pts = Array.from(pointersRef.current.values());
+
+      setIsDragging(true);
+
+      if (pts.length === 1) {
+        gestureRef.current = {
+          kind: "drag",
+          startPointer: pts[0],
+          startPos: { ...glassesPos },
+        };
+        return;
+      }
+
+      if (pts.length >= 2) {
+        const a = pts[0];
+        const b = pts[1];
+        gestureRef.current = {
+          kind: "pinch",
+          startCenter: center(a, b),
+          startPos: { ...glassesPos },
+          startDist: Math.max(1, dist(a, b)),
+          startAngle: angleDeg(a, b),
+          startScaleSlider: scaleSlider,
+          startRotationSlider: rotationSlider,
+        };
+      }
+    },
+    [glassesPos, scaleSlider, rotationSlider]
+  );
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLImageElement>) => {
+    if (!pointersRef.current.has(e.pointerId)) return;
+
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    const pts = Array.from(pointersRef.current.values());
+    const g = gestureRef.current;
+    if (!g) return;
+
+    if (pts.length === 1 && g.kind === "drag") {
+      const p = pts[0];
+      const dx = p.x - g.startPointer.x;
+      const dy = p.y - g.startPointer.y;
+      setGlassesPos({ x: g.startPos.x + dx, y: g.startPos.y + dy });
+      return;
+    }
+
+    if (pts.length >= 2) {
+      const a = pts[0];
+      const b = pts[1];
+      const c = center(a, b);
+
+      // Move with center
+      if (g.kind === "pinch") {
+        const dx = c.x - g.startCenter.x;
+        const dy = c.y - g.startCenter.y;
+        setGlassesPos({ x: g.startPos.x + dx, y: g.startPos.y + dy });
+
+        // Scale
+        const ratio = dist(a, b) / Math.max(1, g.startDist);
+        const nextScale = clamp(g.startScaleSlider * ratio, SCALE_MIN, SCALE_MAX);
+        setScaleSlider(nextScale);
+
+        // Rotation
+        const deltaAngle = angleDeg(a, b) - g.startAngle;
+        const nextRot = clamp(g.startRotationSlider + deltaAngle, ROT_MIN, ROT_MAX);
+        setRotationSlider(nextRot);
+      }
+    }
   }, []);
 
-  const isLoading = !bgLoaded || !glassesLoaded;
+  const endPointer = useCallback(
+    (e: React.PointerEvent<HTMLImageElement>) => {
+      pointersRef.current.delete(e.pointerId);
+
+      const pts = Array.from(pointersRef.current.values());
+
+      if (pts.length === 0) {
+        gestureRef.current = null;
+        setIsDragging(false);
+        return;
+      }
+
+      // If the user was pinching and released one finger, continue dragging with the remaining pointer.
+      if (pts.length === 1) {
+        gestureRef.current = {
+          kind: "drag",
+          startPointer: pts[0],
+          startPos: { ...glassesPos },
+        };
+      }
+    },
+    [glassesPos]
+  );
+
+  const isLoading = !bgLoaded || !glassesLoaded || isPreparingGlasses;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -264,49 +440,52 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
           </DialogTitle>
           <DialogDescription>
             {language === "pt"
-              ? "Arraste para mover, ajuste tamanho e rotação"
-              : "Drag to move, adjust size and rotation"}
+              ? "Arraste para mover; use dois dedos para girar/zoom"
+              : "Drag to move; use two fingers to rotate/zoom"}
           </DialogDescription>
         </div>
 
-        <div 
+        <div
           ref={containerRef}
           className="relative w-full bg-muted overflow-hidden select-none"
           style={{ height: `${CONTAINER_HEIGHT}px` }}
-          onMouseMove={handleDragMove}
-          onMouseUp={handleDragEnd}
-          onMouseLeave={handleDragEnd}
-          onTouchMove={handleDragMove}
-          onTouchEnd={handleDragEnd}
         >
           {/* Background photo */}
           <img
             src={userPhoto}
-            alt="Your photo"
+            alt={language === "pt" ? "Sua foto" : "Your photo"}
             className="absolute inset-0 w-full h-full object-cover"
             onLoad={handleBgLoad}
             onError={() => setBgError(true)}
             draggable={false}
           />
-          
-          {/* Glasses overlay with realistic blending */}
-          {glassesImage && bgLoaded && (
+
+          {/* Glasses overlay */}
+          {glassesSrc && bgLoaded && !bgError && (
             <img
               ref={glassesRef}
-              src={glassesImage}
-              alt="Glasses"
-              className="absolute cursor-move touch-none pointer-events-auto"
+              src={glassesSrc}
+              alt={language === "pt" ? "Óculos" : "Glasses"}
+              className="absolute select-none"
               style={{
                 left: glassesPos.x,
                 top: glassesPos.y,
-                transform: `translate(-50%, -50%) scale(${glassesScale}) rotate(${glassesAngle}deg)`,
-                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
-                opacity: glassesLoaded ? 1 : 0,
-                transition: isDragging ? 'none' : 'opacity 0.2s',
+                transform: `translate(-50%, -50%) scale(${computedScale}) rotate(${computedAngle}deg)`,
+                transformOrigin: "center center",
+                touchAction: "none",
+                cursor: isDragging ? "grabbing" : "grab",
+                mixBlendMode: realisticBlend ? "multiply" : "normal",
+                opacity: glassesLoaded ? computedOpacity : 0,
+                filter:
+                  "drop-shadow(0 2px 6px hsl(var(--foreground) / 0.28))",
+                transition: isDragging ? "none" : "opacity 0.2s",
+                willChange: "transform",
               }}
               onLoad={handleGlassesLoad}
-              onMouseDown={handleDragStart}
-              onTouchStart={handleDragStart}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={endPointer}
+              onPointerCancel={endPointer}
               draggable={false}
             />
           )}
@@ -317,9 +496,13 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 {!bgError && <Loader2 className="h-5 w-5 animate-spin" />}
                 <span>
-                  {bgError 
-                    ? (language === "pt" ? "Erro ao carregar foto" : "Error loading photo")
-                    : (language === "pt" ? "Carregando..." : "Loading...")}
+                  {bgError
+                    ? language === "pt"
+                      ? "Erro ao carregar foto"
+                      : "Error loading photo"
+                    : language === "pt"
+                      ? "Carregando..."
+                      : "Loading..."}
                 </span>
               </div>
             </div>
@@ -333,8 +516,8 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
             <Slider
               value={[scaleSlider]}
               onValueChange={handleScaleChange}
-              min={50}
-              max={200}
+              min={SCALE_MIN}
+              max={SCALE_MAX}
               step={2}
               className="flex-1"
               disabled={isLoading || bgError}
@@ -348,13 +531,50 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
             <Slider
               value={[rotationSlider]}
               onValueChange={handleRotationChange}
-              min={-30}
-              max={30}
+              min={ROT_MIN}
+              max={ROT_MAX}
               step={1}
               className="flex-1"
               disabled={isLoading || bgError}
             />
             <RotateCw className="w-4 h-4 text-muted-foreground shrink-0" />
+          </div>
+
+          {/* Opacity slider */}
+          <div className="flex items-center gap-3">
+            <Eye className="w-4 h-4 text-muted-foreground shrink-0" />
+            <Slider
+              value={[opacitySlider]}
+              onValueChange={handleOpacityChange}
+              min={OPACITY_MIN}
+              max={OPACITY_MAX}
+              step={1}
+              className="flex-1"
+              disabled={isLoading || bgError}
+            />
+            <span className="w-10 text-right text-xs text-muted-foreground tabular-nums">
+              {Math.round(opacitySlider)}%
+            </span>
+          </div>
+
+          {/* Realism switch */}
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="realism-switch">
+                {language === "pt" ? "Modo realista" : "Realistic mode"}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {language === "pt"
+                  ? "Mistura a armação com a pele para parecer mais natural."
+                  : "Blends the frame with skin tones for a more natural look."}
+              </p>
+            </div>
+            <Switch
+              id="realism-switch"
+              checked={realisticBlend}
+              onCheckedChange={setRealisticBlend}
+              disabled={isLoading || bgError}
+            />
           </div>
 
           <Button
@@ -370,7 +590,9 @@ const GlassesTryOn = ({ open, onOpenChange, userPhoto, glassesImage, eyePosition
 
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <Move className="w-3 h-3" />
-            {language === "pt" ? "Arraste os óculos para posicionar" : "Drag glasses to position"}
+            {language === "pt"
+              ? "Arraste (1 dedo) e ajuste com pinça (2 dedos)"
+              : "Drag (1 finger) and pinch (2 fingers)"}
           </div>
         </div>
       </DialogContent>
