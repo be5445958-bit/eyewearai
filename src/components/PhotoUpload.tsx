@@ -14,14 +14,29 @@ export interface EyePosition {
   y: number;
 }
 
+export interface FacialLandmarks {
+  leftEye: EyePosition;
+  rightEye: EyePosition;
+  noseBridge?: EyePosition;
+  noseTop?: EyePosition;
+  leftEar?: EyePosition;
+  rightEar?: EyePosition;
+  leftEyebrow?: EyePosition;
+  rightEyebrow?: EyePosition;
+  faceRotation?: number;
+  faceWidth?: number;
+}
+
 export interface AnalysisResult {
   faceShape: string;
   skinTone: string;
   facialFeatures: string;
+  // Support both old format (eyePositions) and new format (facialLandmarks)
   eyePositions?: {
     leftEye: EyePosition;
     rightEye: EyePosition;
   };
+  facialLandmarks?: FacialLandmarks;
   recommendations: {
     style: string;
     reason: string;
