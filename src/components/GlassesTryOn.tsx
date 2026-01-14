@@ -210,85 +210,131 @@ const GlassesTryOn = ({
     setGlassesLoaded(false);
   }, [open, glassesSrc]);
 
+  type FitResult = { pos: Point; scale: number; angle: number };
+
+  const computeAutoFit = useCallback(
+    (glassesNaturalW: number): FitResult | null => {
+      if (!facialLandmarks || !imageDims) return null;
+
+      // Calculate offset for the image within the container (object-cover centering)
+      const containerAspect = containerWidth / CONTAINER_HEIGHT;
+      const imageAspect = imageDims.natural.w / imageDims.natural.h;
+
+      let offsetX = 0;
+      let offsetY = 0;
+      let effectiveW = containerWidth;
+      let effectiveH = CONTAINER_HEIGHT;
+
+      if (imageAspect > containerAspect) {
+        // Image is wider - cropped on sides
+        effectiveW = CONTAINER_HEIGHT * imageAspect;
+        offsetX = (effectiveW - containerWidth) / 2;
+      } else {
+        // Image is taller - cropped on top/bottom
+        effectiveH = containerWidth / imageAspect;
+        offsetY = (effectiveH - CONTAINER_HEIGHT) / 2;
+      }
+
+      const map = (p?: { x: number; y: number }): Point | null =>
+        p ? { x: p.x * effectiveW - offsetX, y: p.y * effectiveH - offsetY } : null;
+
+      const lEye = map(facialLandmarks.leftEye);
+      const rEye = map(facialLandmarks.rightEye);
+      if (!lEye || !rEye) return null;
+
+      const eyeCenter = center(lEye, rEye);
+      const eyeDistance = Math.max(1, dist(lEye, rEye));
+      const eyeAngle = angleDeg(lEye, rEye);
+
+      const noseBridge = map(facialLandmarks.noseBridge);
+      const noseTop = map(facialLandmarks.noseTop);
+      const lBrow = map(facialLandmarks.leftEyebrow);
+      const rBrow = map(facialLandmarks.rightEyebrow);
+      const lEar = map(facialLandmarks.leftEar);
+      const rEar = map(facialLandmarks.rightEar);
+
+      // --- Position (X/Y) ---
+      // X: mostly eyes center, slightly corrected by nose bridge when available.
+      let x = eyeCenter.x;
+      if (noseBridge) x = x * 0.8 + noseBridge.x * 0.2;
+
+      // Y: start near eye line, move a bit towards the nose bridge (frame sits on upper nose),
+      // then ensure it's not unrealistically above the eyebrows.
+      let y = eyeCenter.y;
+      if (noseBridge) y = y + (noseBridge.y - y) * 0.35;
+
+      if (lBrow && rBrow) {
+        const browAvgY = (lBrow.y + rBrow.y) / 2;
+        // Keep frame below brows by a small margin.
+        y = Math.max(y, browAvgY + eyeDistance * 0.18);
+      }
+
+      if (noseTop) {
+        // Don't let it drift too low (tip of nose is far below where frames sit)
+        y = Math.min(y, noseTop.y - eyeDistance * 0.05);
+      }
+
+      y = clamp(y, CONTAINER_HEIGHT * 0.12, CONTAINER_HEIGHT * 0.88);
+
+      // --- Scale ---
+      // Base width from eyes (interpupillary distance). Typical frame width is ~2.0–2.3x eye-center distance.
+      const targetFromEyes = eyeDistance * 2.15;
+      let targetWidth = targetFromEyes;
+
+      if (lEar && rEar) {
+        const earDistance = dist(lEar, rEar);
+        const isEarDistancePlausible = earDistance > eyeDistance * 2.2 && earDistance < eyeDistance * 4.5;
+        if (isEarDistancePlausible) {
+          // Frame should be slightly smaller than ear-to-ear distance.
+          const earBased = earDistance * 0.92;
+          targetWidth = clamp(targetFromEyes, earBased * 0.85, earBased);
+        }
+      } else if (typeof facialLandmarks.faceWidth === "number") {
+        const faceWidthPx = facialLandmarks.faceWidth * effectiveW;
+        if (faceWidthPx > 1) {
+          targetWidth = clamp(targetFromEyes, faceWidthPx * 0.75, faceWidthPx * 0.92);
+        }
+      }
+
+      const scale = clamp(targetWidth / Math.max(1, glassesNaturalW), 0.2, 4);
+
+      // --- Angle ---
+      // Prefer eye-line angle (usually more consistent than LLM-provided rotation).
+      let angle = eyeAngle;
+      if (typeof facialLandmarks.faceRotation === "number") {
+        const rot = facialLandmarks.faceRotation;
+        // Only blend when it roughly agrees (prevents wild mis-rotations).
+        if (Math.abs(rot - eyeAngle) <= 12) {
+          angle = eyeAngle * 0.7 + rot * 0.3;
+        }
+      }
+
+      angle = clamp(angle, -25, 25);
+
+      return { pos: { x, y }, scale, angle };
+    },
+    [facialLandmarks, imageDims, containerWidth]
+  );
+
   // Position glasses when background and glasses are loaded
   useEffect(() => {
     if (!bgLoaded || !glassesLoaded || !imageDims || !glassesRef.current) return;
 
-    const glassesEl = glassesRef.current;
-    const glassesNaturalW = glassesEl.naturalWidth;
+    const glassesNaturalW = glassesRef.current.naturalWidth;
 
-    // Calculate offset for the image within the container (object-cover centering)
-    const containerAspect = containerWidth / CONTAINER_HEIGHT;
-    const imageAspect = imageDims.natural.w / imageDims.natural.h;
-
-    let offsetX = 0;
-    let offsetY = 0;
-    let effectiveW = containerWidth;
-    let effectiveH = CONTAINER_HEIGHT;
-
-    if (imageAspect > containerAspect) {
-      // Image is wider - cropped on sides
-      effectiveW = CONTAINER_HEIGHT * imageAspect;
-      offsetX = (effectiveW - containerWidth) / 2;
-    } else {
-      // Image is taller - cropped on top/bottom
-      effectiveH = containerWidth / imageAspect;
-      offsetY = (effectiveH - CONTAINER_HEIGHT) / 2;
+    const fit = computeAutoFit(glassesNaturalW);
+    if (fit) {
+      setGlassesPos(fit.pos);
+      setBaseScale(fit.scale);
+      setBaseAngle(fit.angle);
+      return;
     }
 
-    if (facialLandmarks) {
-      const leftEyeX = facialLandmarks.leftEye.x * effectiveW - offsetX;
-      const leftEyeY = facialLandmarks.leftEye.y * effectiveH - offsetY;
-      const rightEyeX = facialLandmarks.rightEye.x * effectiveW - offsetX;
-      const rightEyeY = facialLandmarks.rightEye.y * effectiveH - offsetY;
-
-      const centerX = (leftEyeX + rightEyeX) / 2;
-      let centerY = (leftEyeY + rightEyeY) / 2;
-      
-      // Use nose bridge for better vertical positioning if available
-      if (facialLandmarks.noseBridge) {
-        const noseBridgeY = facialLandmarks.noseBridge.y * effectiveH - offsetY;
-        centerY = (centerY + noseBridgeY) / 2;
-      }
-
-      const eyeDistance = Math.hypot(rightEyeX - leftEyeX, rightEyeY - leftEyeY);
-
-      // Use ear-to-ear or face width for better scale if available
-      let effectiveFaceWidth = eyeDistance;
-      if (facialLandmarks.leftEar && facialLandmarks.rightEar) {
-        const leftEarX = facialLandmarks.leftEar.x * effectiveW - offsetX;
-        const rightEarX = facialLandmarks.rightEar.x * effectiveW - offsetX;
-        const leftEarY = facialLandmarks.leftEar.y * effectiveH - offsetY;
-        const rightEarY = facialLandmarks.rightEar.y * effectiveH - offsetY;
-        const earDistance = Math.hypot(rightEarX - leftEarX, rightEarY - leftEarY);
-        effectiveFaceWidth = Math.max(eyeDistance, earDistance * 0.75);
-      } else if (facialLandmarks.faceWidth) {
-        const faceWidthPx = facialLandmarks.faceWidth * effectiveW;
-        effectiveFaceWidth = Math.max(eyeDistance, faceWidthPx * 0.55);
-      }
-
-      // Glasses should be about 2.6x the effective face width for a realistic fit
-      const targetGlassesWidth = effectiveFaceWidth * 2.6;
-      const scale = targetGlassesWidth / glassesNaturalW;
-
-      // Use face rotation if available, otherwise calculate from eye positions
-      let angle: number;
-      if (facialLandmarks.faceRotation !== undefined) {
-        angle = facialLandmarks.faceRotation;
-      } else {
-        angle = angleDeg({ x: leftEyeX, y: leftEyeY }, { x: rightEyeX, y: rightEyeY });
-      }
-
-      setGlassesPos({ x: centerX, y: centerY });
-      setBaseScale(scale);
-      setBaseAngle(angle);
-    } else {
-      // Default positioning - center of upper third
-      setGlassesPos({ x: containerWidth / 2, y: CONTAINER_HEIGHT * 0.35 });
-      setBaseScale((containerWidth * 0.5) / glassesNaturalW);
-      setBaseAngle(0);
-    }
-  }, [bgLoaded, glassesLoaded, imageDims, facialLandmarks, containerWidth]);
+    // Default positioning - center of upper third
+    setGlassesPos({ x: containerWidth / 2, y: CONTAINER_HEIGHT * 0.35 });
+    setBaseScale((containerWidth * 0.5) / Math.max(1, glassesNaturalW));
+    setBaseAngle(0);
+  }, [bgLoaded, glassesLoaded, imageDims, computeAutoFit, containerWidth]);
 
   const handleScaleChange = useCallback(
     (values: number[]) => {
@@ -316,39 +362,19 @@ const GlassesTryOn = ({
     setRotationSlider(0);
     setOpacitySlider(92);
 
-    if (facialLandmarks && imageDims) {
-      const containerAspect = containerWidth / CONTAINER_HEIGHT;
-      const imageAspect = imageDims.natural.w / imageDims.natural.h;
-
-      let offsetX = 0;
-      let offsetY = 0;
-      let effectiveW = containerWidth;
-      let effectiveH = CONTAINER_HEIGHT;
-
-      if (imageAspect > containerAspect) {
-        effectiveW = CONTAINER_HEIGHT * imageAspect;
-        offsetX = (effectiveW - containerWidth) / 2;
-      } else {
-        effectiveH = containerWidth / imageAspect;
-        offsetY = (effectiveH - CONTAINER_HEIGHT) / 2;
+    const glassesNaturalW = glassesRef.current?.naturalWidth;
+    if (glassesNaturalW) {
+      const fit = computeAutoFit(glassesNaturalW);
+      if (fit) {
+        setGlassesPos(fit.pos);
+        setBaseScale(fit.scale);
+        setBaseAngle(fit.angle);
+        return;
       }
-
-      const leftEyeX = facialLandmarks.leftEye.x * effectiveW - offsetX;
-      const leftEyeY = facialLandmarks.leftEye.y * effectiveH - offsetY;
-      const rightEyeX = facialLandmarks.rightEye.x * effectiveW - offsetX;
-      const rightEyeY = facialLandmarks.rightEye.y * effectiveH - offsetY;
-
-      let centerY = (leftEyeY + rightEyeY) / 2;
-      if (facialLandmarks.noseBridge) {
-        const noseBridgeY = facialLandmarks.noseBridge.y * effectiveH - offsetY;
-        centerY = (centerY + noseBridgeY) / 2;
-      }
-
-      setGlassesPos({ x: (leftEyeX + rightEyeX) / 2, y: centerY });
-    } else {
-      setGlassesPos({ x: containerWidth / 2, y: CONTAINER_HEIGHT * 0.35 });
     }
-  }, [facialLandmarks, imageDims, containerWidth]);
+
+    setGlassesPos({ x: containerWidth / 2, y: CONTAINER_HEIGHT * 0.35 });
+  }, [computeAutoFit, containerWidth]);
 
   // Pointer-based drag + pinch (scale/rotate) gestures (mobile-friendly)
   const pointersRef = useRef(new Map<number, Point>());
