@@ -254,27 +254,35 @@ const GlassesTryOn = ({
       const rEar = map(facialLandmarks.rightEar);
 
       // --- Position (X/Y) ---
-      // X: mostly eyes center, slightly corrected by nose bridge when available.
+      // X: center between eyes, with slight nose bridge correction
       let x = eyeCenter.x;
-      if (noseBridge) x = x * 0.8 + noseBridge.x * 0.2;
+      if (noseBridge) x = x * 0.85 + noseBridge.x * 0.15;
 
-      // Y: start near eye line, move a bit towards the nose bridge (frame sits on upper nose),
-      // then ensure it's not unrealistically above the eyebrows.
+      // Y: The glasses frame should sit EXACTLY at eye level
+      // The center of the glasses lens should align with the eyes
+      // We add a small offset DOWN because the glasses sit on the nose bridge
       let y = eyeCenter.y;
-      if (noseBridge) y = y + (noseBridge.y - y) * 0.35;
+      
+      // Add a small downward offset (glasses rest on nose, not floating at eye level)
+      // This offset is proportional to the eye distance for consistency across face sizes
+      const noseRestOffset = eyeDistance * 0.15;
+      y = y + noseRestOffset;
 
+      // If we have nose bridge info, use it to fine-tune (but don't go too far down)
+      if (noseBridge) {
+        // The nose bridge is below the eyes - we want to be closer to eyes than nose
+        const noseAdjustment = (noseBridge.y - eyeCenter.y) * 0.1;
+        y = y + noseAdjustment;
+      }
+
+      // Ensure we don't go above eyebrows (safety check)
       if (lBrow && rBrow) {
         const browAvgY = (lBrow.y + rBrow.y) / 2;
-        // Keep frame below brows by a small margin.
-        y = Math.max(y, browAvgY + eyeDistance * 0.18);
+        // Glasses should be at least slightly below eyebrows
+        y = Math.max(y, browAvgY + eyeDistance * 0.1);
       }
 
-      if (noseTop) {
-        // Don't let it drift too low (tip of nose is far below where frames sit)
-        y = Math.min(y, noseTop.y - eyeDistance * 0.05);
-      }
-
-      y = clamp(y, CONTAINER_HEIGHT * 0.12, CONTAINER_HEIGHT * 0.88);
+      y = clamp(y, CONTAINER_HEIGHT * 0.15, CONTAINER_HEIGHT * 0.85);
 
       // --- Scale ---
       // Base width from eyes (interpupillary distance). Typical frame width is ~2.0–2.3x eye-center distance.
