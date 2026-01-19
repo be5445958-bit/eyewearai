@@ -45,122 +45,86 @@ const drawResized = (img: HTMLImageElement, maxSize: number) => {
 };
 
 /**
- * Detects and removes the temple arms (hastes) from glasses images.
- * Temples are typically the thin parts extending from the left and right edges.
- * This function keeps only the front frame of the glasses.
+ * Removes the temple arms (hastes) from glasses images using aggressive cropping.
+ * Most glasses images have temples extending from the outer ~15-25% on each side.
+ * This function hard-crops those regions and applies a smooth fade at the edges.
  */
 const removeTempleArms = (
-  ctx: CanvasRenderingContext2D,
+  _ctx: CanvasRenderingContext2D,
   data: Uint8ClampedArray,
   w: number,
   h: number,
-  alphaCutoff: number
+  _alphaCutoff: number
 ): { cropLeft: number; cropRight: number } => {
-  // Analyze the horizontal density of opaque pixels
-  // The front frame typically has higher density in the center
+  // AGGRESSIVE APPROACH: Cut off the outer portions where temples typically are
+  // Most glasses frames have the main lens area in the center 60-70% of the image
   
-  const columnDensity: number[] = [];
+  // Calculate the approximate center of content by analyzing pixel density
+  const rowCenterOfMass: number[] = [];
   
-  for (let x = 0; x < w; x++) {
-    let opaqueCount = 0;
-    for (let y = 0; y < h; y++) {
-      const idx = (y * w + x) * 4;
-      if (data[idx + 3] > alphaCutoff) {
-        opaqueCount++;
-      }
-    }
-    columnDensity.push(opaqueCount);
-  }
-  
-  // Find the center of mass (where most content is)
-  let totalWeight = 0;
-  let weightedSum = 0;
-  for (let x = 0; x < w; x++) {
-    totalWeight += columnDensity[x];
-    weightedSum += x * columnDensity[x];
-  }
-  
-  const centerOfMass = totalWeight > 0 ? weightedSum / totalWeight : w / 2;
-  
-  // Find the peak density region (the frame)
-  const maxDensity = Math.max(...columnDensity);
-  const densityThreshold = maxDensity * 0.15; // Temples have much lower density
-  
-  // Scan from left to find where the main frame starts
-  let leftFrameStart = 0;
-  let foundLeftFrame = false;
-  for (let x = 0; x < centerOfMass; x++) {
-    if (columnDensity[x] > densityThreshold) {
-      // Check if this is sustained (not just noise)
-      let sustained = true;
-      for (let check = x; check < Math.min(x + 10, centerOfMass); check++) {
-        if (columnDensity[check] <= densityThreshold * 0.5) {
-          sustained = false;
-          break;
-        }
-      }
-      if (sustained) {
-        leftFrameStart = x;
-        foundLeftFrame = true;
-        break;
-      }
-    }
-  }
-  
-  // Scan from right to find where the main frame ends
-  let rightFrameEnd = w - 1;
-  let foundRightFrame = false;
-  for (let x = w - 1; x > centerOfMass; x--) {
-    if (columnDensity[x] > densityThreshold) {
-      let sustained = true;
-      for (let check = x; check > Math.max(x - 10, centerOfMass); check--) {
-        if (columnDensity[check] <= densityThreshold * 0.5) {
-          sustained = false;
-          break;
-        }
-      }
-      if (sustained) {
-        rightFrameEnd = x;
-        foundRightFrame = true;
-        break;
-      }
-    }
-  }
-  
-  // If we found both frame edges, crop there
-  // Otherwise, use a percentage-based approach (temples are typically outer 15-20%)
-  if (!foundLeftFrame || !foundRightFrame) {
-    // Fallback: assume temples are in outer 12% on each side
-    leftFrameStart = Math.round(w * 0.12);
-    rightFrameEnd = Math.round(w * 0.88);
-  }
-  
-  // Add small padding to not cut the frame itself
-  const padding = Math.round(w * 0.02);
-  leftFrameStart = Math.max(0, leftFrameStart - padding);
-  rightFrameEnd = Math.min(w - 1, rightFrameEnd + padding);
-  
-  // Fade out the temple regions instead of hard cutting
   for (let y = 0; y < h; y++) {
-    // Fade left temple
-    for (let x = 0; x < leftFrameStart; x++) {
+    let rowSum = 0;
+    let rowWeightedX = 0;
+    for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
-      const fadeProgress = x / Math.max(1, leftFrameStart);
-      // Exponential fade - more aggressive near the edge
-      const keepAlpha = Math.pow(fadeProgress, 3);
-      data[idx + 3] = Math.round(data[idx + 3] * keepAlpha);
+      const alpha = data[idx + 3];
+      if (alpha > 10) {
+        rowSum += alpha;
+        rowWeightedX += x * alpha;
+      }
     }
-    
-    // Fade right temple
-    for (let x = rightFrameEnd; x < w; x++) {
+    rowCenterOfMass.push(rowSum > 0 ? rowWeightedX / rowSum : w / 2);
+  }
+  
+  // Find the overall center
+  const validCenters = rowCenterOfMass.filter(c => c > w * 0.3 && c < w * 0.7);
+  const avgCenter = validCenters.length > 0 
+    ? validCenters.reduce((a, b) => a + b, 0) / validCenters.length 
+    : w / 2;
+  
+  // The main frame should be centered around avgCenter
+  // Cut off 18% from each side (temples are usually in outer 15-25%)
+  const cutPercent = 0.18;
+  const leftCut = Math.round(w * cutPercent);
+  const rightCut = Math.round(w * (1 - cutPercent));
+  
+  // Fade width - smooth transition zone
+  const fadeWidth = Math.round(w * 0.08);
+  
+  // Apply hard crop with smooth fade on the edges
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
-      const fadeProgress = (w - 1 - x) / Math.max(1, w - 1 - rightFrameEnd);
-      const keepAlpha = Math.pow(fadeProgress, 3);
-      data[idx + 3] = Math.round(data[idx + 3] * keepAlpha);
+      
+      if (x < leftCut) {
+        // Left temple region - fade out
+        const distFromCut = leftCut - x;
+        if (distFromCut > fadeWidth) {
+          // Beyond fade zone - completely transparent
+          data[idx + 3] = 0;
+        } else {
+          // In fade zone - gradual fade
+          const fadeProgress = distFromCut / fadeWidth;
+          const keepAlpha = 1 - Math.pow(fadeProgress, 2);
+          data[idx + 3] = Math.round(data[idx + 3] * keepAlpha);
+        }
+      } else if (x > rightCut) {
+        // Right temple region - fade out
+        const distFromCut = x - rightCut;
+        if (distFromCut > fadeWidth) {
+          // Beyond fade zone - completely transparent
+          data[idx + 3] = 0;
+        } else {
+          // In fade zone - gradual fade
+          const fadeProgress = distFromCut / fadeWidth;
+          const keepAlpha = 1 - Math.pow(fadeProgress, 2);
+          data[idx + 3] = Math.round(data[idx + 3] * keepAlpha);
+        }
+      }
     }
   }
   
-  return { cropLeft: leftFrameStart, cropRight: rightFrameEnd };
+  return { cropLeft: leftCut, cropRight: rightCut };
 };
 
 /**
