@@ -1,5 +1,9 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export interface PrepareGlassesImageOptions {
-  /** Pixels considered white-ish will become transparent. Default: 245 */
+  /** Use AI to remove temple arms (recommended). Default: true */
+  useAI?: boolean;
+  /** Fallback: Pixels considered white-ish will become transparent. Default: 245 */
   whiteThreshold?: number;
   /** Soft fade range above the threshold. Default: 25 */
   softness?: number;
@@ -9,8 +13,6 @@ export interface PrepareGlassesImageOptions {
   paddingRatio?: number;
   /** Resize the input image down for performance (max side). Default: 1024 */
   maxSize?: number;
-  /** Remove temple arms (hastes) from glasses. Default: true */
-  removeTemples?: boolean;
 }
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
@@ -45,77 +47,85 @@ const drawResized = (img: HTMLImageElement, maxSize: number) => {
 };
 
 /**
- * Removes the temple arms (hastes) from glasses images using aggressive cropping.
- * Most glasses images have temples extending from the outer ~15-25% on each side.
- * This function hard-crops those regions and applies a smooth fade at the edges.
+ * Converts image to base64 data URL
  */
-const removeTempleArms = (
-  _ctx: CanvasRenderingContext2D,
+const imageToBase64 = async (src: string): Promise<string> => {
+  // If already a data URL, return as-is
+  if (src.startsWith("data:")) return src;
+  
+  const img = await loadImage(src);
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get canvas context");
+  ctx.drawImage(img, 0, 0);
+  return canvas.toDataURL("image/png");
+};
+
+/**
+ * Calls the AI edge function to process glasses and remove temples
+ */
+const processWithAI = async (imageUrl: string): Promise<string | null> => {
+  try {
+    // Convert to base64 if it's a local asset
+    let urlToSend = imageUrl;
+    if (!imageUrl.startsWith("http") || imageUrl.includes("localhost")) {
+      urlToSend = await imageToBase64(imageUrl);
+    }
+
+    const { data, error } = await supabase.functions.invoke("process-glasses", {
+      body: { imageUrl: urlToSend },
+    });
+
+    if (error) {
+      console.error("AI processing error:", error);
+      return null;
+    }
+
+    if (data?.success && data?.processedImageUrl) {
+      return data.processedImageUrl;
+    }
+
+    return null;
+  } catch (err) {
+    console.error("Failed to process with AI:", err);
+    return null;
+  }
+};
+
+/**
+ * Fallback: Removes temple arms using simple cropping
+ */
+const removeTempleArmsFallback = (
   data: Uint8ClampedArray,
   w: number,
-  h: number,
-  _alphaCutoff: number
-): { cropLeft: number; cropRight: number } => {
+  h: number
+): void => {
   // AGGRESSIVE APPROACH: Cut off the outer portions where temples typically are
-  // Most glasses frames have the main lens area in the center 60-70% of the image
-  
-  // Calculate the approximate center of content by analyzing pixel density
-  const rowCenterOfMass: number[] = [];
-  
-  for (let y = 0; y < h; y++) {
-    let rowSum = 0;
-    let rowWeightedX = 0;
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const alpha = data[idx + 3];
-      if (alpha > 10) {
-        rowSum += alpha;
-        rowWeightedX += x * alpha;
-      }
-    }
-    rowCenterOfMass.push(rowSum > 0 ? rowWeightedX / rowSum : w / 2);
-  }
-  
-  // Find the overall center
-  const validCenters = rowCenterOfMass.filter(c => c > w * 0.3 && c < w * 0.7);
-  const avgCenter = validCenters.length > 0 
-    ? validCenters.reduce((a, b) => a + b, 0) / validCenters.length 
-    : w / 2;
-  
-  // The main frame should be centered around avgCenter
-  // Cut off 18% from each side (temples are usually in outer 15-25%)
-  const cutPercent = 0.18;
+  const cutPercent = 0.20;
   const leftCut = Math.round(w * cutPercent);
   const rightCut = Math.round(w * (1 - cutPercent));
-  
-  // Fade width - smooth transition zone
   const fadeWidth = Math.round(w * 0.08);
-  
-  // Apply hard crop with smooth fade on the edges
+
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
-      
+
       if (x < leftCut) {
-        // Left temple region - fade out
         const distFromCut = leftCut - x;
         if (distFromCut > fadeWidth) {
-          // Beyond fade zone - completely transparent
           data[idx + 3] = 0;
         } else {
-          // In fade zone - gradual fade
           const fadeProgress = distFromCut / fadeWidth;
           const keepAlpha = 1 - Math.pow(fadeProgress, 2);
           data[idx + 3] = Math.round(data[idx + 3] * keepAlpha);
         }
       } else if (x > rightCut) {
-        // Right temple region - fade out
         const distFromCut = x - rightCut;
         if (distFromCut > fadeWidth) {
-          // Beyond fade zone - completely transparent
           data[idx + 3] = 0;
         } else {
-          // In fade zone - gradual fade
           const fadeProgress = distFromCut / fadeWidth;
           const keepAlpha = 1 - Math.pow(fadeProgress, 2);
           data[idx + 3] = Math.round(data[idx + 3] * keepAlpha);
@@ -123,12 +133,10 @@ const removeTempleArms = (
       }
     }
   }
-  
-  return { cropLeft: leftCut, cropRight: rightCut };
 };
 
 /**
- * Removes typical white product-background, removes temple arms, and trims transparent borders.
+ * Removes typical white product-background and optionally uses AI to remove temple arms.
  * Returns a PNG dataURL.
  */
 export const prepareGlassesImage = async (
@@ -136,18 +144,28 @@ export const prepareGlassesImage = async (
   opts: PrepareGlassesImageOptions = {}
 ): Promise<string> => {
   const {
+    useAI = true,
     whiteThreshold = 245,
     softness = 25,
     alphaCutoff = 8,
     paddingRatio = 0.05,
     maxSize = 1024,
-    removeTemples = true,
   } = opts;
 
+  // Try AI processing first if enabled
+  if (useAI) {
+    const aiResult = await processWithAI(src);
+    if (aiResult) {
+      console.log("Successfully processed glasses with AI");
+      return aiResult;
+    }
+    console.log("AI processing failed, falling back to manual processing");
+  }
+
+  // Fallback to manual processing
   const img = await loadImage(src);
-  // decode() improves reliability on some browsers
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const anyImg: any = img as any;
+  const anyImg = img as any;
   if (typeof anyImg.decode === "function") {
     try {
       await anyImg.decode();
@@ -171,20 +189,16 @@ export const prepareGlassesImage = async (
 
     const minRGB = Math.min(r, g, b);
     if (minRGB >= whiteThreshold) {
-      // Smoothly fade to transparent above threshold
       const t = clamp((minRGB - whiteThreshold) / Math.max(1, softness), 0, 1);
       const keep = 1 - t;
       data[i + 3] = Math.round(a * keep);
     }
   }
 
-  // 2) Remove temple arms (hastes) - the side pieces that go behind the ears
+  // 2) Remove temple arms using fallback method
   const w = canvas.width;
   const h = canvas.height;
-  
-  if (removeTemples) {
-    removeTempleArms(ctx, data, w, h, alphaCutoff);
-  }
+  removeTempleArmsFallback(data, w, h);
 
   ctx.putImageData(imageData, 0, 0);
 
@@ -207,7 +221,6 @@ export const prepareGlassesImage = async (
     }
   }
 
-  // If nothing found, fallback to original
   if (maxX < 0 || maxY < 0) {
     return canvas.toDataURL("image/png");
   }
