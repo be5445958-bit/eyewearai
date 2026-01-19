@@ -87,6 +87,7 @@ const GlassesTryOn = ({
   const [rotationSlider, setRotationSlider] = useState(0);
   const [opacitySlider, setOpacitySlider] = useState(92);
   const [realisticBlend, setRealisticBlend] = useState(true);
+  const [hideTemples, setHideTemples] = useState(true);
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -543,6 +544,13 @@ const GlassesTryOn = ({
                   "drop-shadow(0 2px 6px hsl(var(--foreground) / 0.28))",
                 transition: isDragging ? "none" : "opacity 0.2s",
                 willChange: "transform",
+                // Mask to hide temple arms - fades out the left and right 18% of the image
+                maskImage: hideTemples
+                  ? "linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%)"
+                  : "none",
+                WebkitMaskImage: hideTemples
+                  ? "linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%)"
+                  : "none",
               }}
               onLoad={handleGlassesLoad}
               onPointerDown={handlePointerDown}
@@ -618,6 +626,26 @@ const GlassesTryOn = ({
             <span className="w-10 text-right text-xs text-muted-foreground tabular-nums">
               {Math.round(opacitySlider)}%
             </span>
+          </div>
+
+          {/* Hide temples switch */}
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="temples-switch">
+                {language === "pt" ? "Ocultar hastes" : "Hide temples"}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {language === "pt"
+                  ? "Esconde as hastes laterais para visualização mais limpa."
+                  : "Hides side temple arms for cleaner visualization."}
+              </p>
+            </div>
+            <Switch
+              id="temples-switch"
+              checked={hideTemples}
+              onCheckedChange={setHideTemples}
+              disabled={isLoading || bgError}
+            />
           </div>
 
           {/* Realism switch */}
