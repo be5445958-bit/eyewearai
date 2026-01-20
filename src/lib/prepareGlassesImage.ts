@@ -49,70 +49,6 @@ const drawResized = (img: HTMLImageElement, maxSize: number) => {
 };
 
 /**
- * Strong background removal for product images that often come with white/near-white backdrops.
- * Keeps colored pixels and edges, but fades low-chroma bright pixels to transparent.
- */
-const removeNearWhiteBackground = (
-  data: Uint8ClampedArray,
-  {
-    whiteThreshold,
-    softness,
-  }: {
-    whiteThreshold: number;
-    softness: number;
-  }
-) => {
-  // Two tests:
-  // 1) old minRGB >= threshold
-  // 2) low-chroma bright pixels (common in JPEG white backgrounds)
-  const chromaMax = 22; // lower = more aggressive
-  const lumaBias = 8;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const a = data[i + 3];
-    if (a === 0) continue;
-
-    const minRGB = Math.min(r, g, b);
-    const maxRGB = Math.max(r, g, b);
-    const chroma = maxRGB - minRGB;
-    const luma = (r + g + b) / 3;
-
-    const isNearWhite = minRGB >= whiteThreshold;
-    const isLowChromaBright = chroma <= chromaMax && luma >= whiteThreshold - lumaBias;
-
-    if (isNearWhite || isLowChromaBright) {
-      // Fade alpha smoothly above the threshold.
-      const t = clamp((luma - whiteThreshold) / Math.max(1, softness), 0, 1);
-      const keep = 1 - t;
-      data[i + 3] = Math.round(a * keep);
-    }
-  }
-};
-
-const cleanupBackgroundDataUrl = async (
-  src: string,
-  {
-    whiteThreshold,
-    softness,
-    maxSize,
-  }: {
-    whiteThreshold: number;
-    softness: number;
-    maxSize: number;
-  }
-): Promise<string> => {
-  const img = await loadImage(src);
-  const { canvas, ctx } = drawResized(img, maxSize);
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  removeNearWhiteBackground(imageData.data, { whiteThreshold, softness });
-  ctx.putImageData(imageData, 0, 0);
-  return canvas.toDataURL("image/png");
-};
-
-/**
  * Converts image to base64 data URL
  */
 const imageToBase64 = async (src: string): Promise<string> => {
@@ -212,9 +148,8 @@ export const prepareGlassesImage = async (
   const {
     useAI = true,
     removeTemples = true,
-    // More aggressive by default to fully remove common product-image backdrops.
-    whiteThreshold = 232,
-    softness = 40,
+    whiteThreshold = 245,
+    softness = 25,
     alphaCutoff = 8,
     paddingRatio = 0.05,
     maxSize = 1024,
@@ -225,12 +160,7 @@ export const prepareGlassesImage = async (
     const aiResult = await processWithAI(src);
     if (aiResult) {
       console.log("Successfully processed glasses with AI");
-      // Some model outputs still come with a faint white backdrop; enforce transparency.
-      try {
-        return await cleanupBackgroundDataUrl(aiResult, { whiteThreshold, softness, maxSize });
-      } catch {
-        return aiResult;
-      }
+      return aiResult;
     }
     console.log("AI processing failed, falling back to manual processing");
   }
@@ -253,7 +183,20 @@ export const prepareGlassesImage = async (
   const data = imageData.data;
 
   // 1) Chroma-key-ish removal of near-white background
-  removeNearWhiteBackground(data, { whiteThreshold, softness });
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+    if (a === 0) continue;
+
+    const minRGB = Math.min(r, g, b);
+    if (minRGB >= whiteThreshold) {
+      const t = clamp((minRGB - whiteThreshold) / Math.max(1, softness), 0, 1);
+      const keep = 1 - t;
+      data[i + 3] = Math.round(a * keep);
+    }
+  }
 
   // 2) Remove temple arms (optional)
   const w = canvas.width;
