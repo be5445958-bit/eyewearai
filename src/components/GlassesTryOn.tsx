@@ -544,12 +544,12 @@ const GlassesTryOn = ({
                   "drop-shadow(0 2px 6px hsl(var(--foreground) / 0.28))",
                 transition: isDragging ? "none" : "opacity 0.2s",
                 willChange: "transform",
-                // Mask to hide temple arms - fades out the left and right 25% of the image
+                // Mask to hide temple arms - fades out the left and right 35% of the image (95% transparency)
                 maskImage: hideTemples
-                  ? "linear-gradient(to right, transparent 0%, transparent 5%, black 25%, black 75%, transparent 95%, transparent 100%)"
+                  ? "linear-gradient(to right, transparent 0%, transparent 10%, black 35%, black 65%, transparent 90%, transparent 100%)"
                   : "none",
                 WebkitMaskImage: hideTemples
-                  ? "linear-gradient(to right, transparent 0%, transparent 5%, black 25%, black 75%, transparent 95%, transparent 100%)"
+                  ? "linear-gradient(to right, transparent 0%, transparent 10%, black 35%, black 65%, transparent 90%, transparent 100%)"
                   : "none",
               }}
               onLoad={handleGlassesLoad}
