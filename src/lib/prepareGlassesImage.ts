@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 export interface PrepareGlassesImageOptions {
   /** Use AI to remove temple arms (recommended). Default: true */
   useAI?: boolean;
+  /** Remove temple arms. Default: true */
+  removeTemples?: boolean;
   /** Fallback: Pixels considered white-ish will become transparent. Default: 245 */
   whiteThreshold?: number;
   /** Soft fade range above the threshold. Default: 25 */
@@ -145,6 +147,7 @@ export const prepareGlassesImage = async (
 ): Promise<string> => {
   const {
     useAI = true,
+    removeTemples = true,
     whiteThreshold = 245,
     softness = 25,
     alphaCutoff = 8,
@@ -153,7 +156,7 @@ export const prepareGlassesImage = async (
   } = opts;
 
   // Try AI processing first if enabled
-  if (useAI) {
+  if (useAI && removeTemples) {
     const aiResult = await processWithAI(src);
     if (aiResult) {
       console.log("Successfully processed glasses with AI");
@@ -195,10 +198,12 @@ export const prepareGlassesImage = async (
     }
   }
 
-  // 2) Remove temple arms using fallback method
+  // 2) Remove temple arms (optional)
   const w = canvas.width;
   const h = canvas.height;
-  removeTempleArmsFallback(data, w, h);
+  if (removeTemples) {
+    removeTempleArmsFallback(data, w, h);
+  }
 
   ctx.putImageData(imageData, 0, 0);
 

@@ -35,14 +35,22 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image-preview",
+        model: "google/gemini-3-pro-image-preview",
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: `Edit this eyeglasses/sunglasses image: Remove the temple arms (the side pieces that go behind the ears) completely. Keep ONLY the front frame with the lenses. The result should show just the front-facing frame as if viewed directly from the front, with no temple arms visible at all. Maintain the exact same style, color, and design of the frame. The background should be transparent or white.`,
+                text: `Edit this eyeglasses/sunglasses image to make it PERFECTLY front-only.
+
+Requirements (strict):
+- Remove the temple arms / side arms / hinges / side pieces completely.
+- Remove ANY remnants of the temples, including thin diagonal lines visible behind the lenses, shadows, reflections, or stubs near the corners.
+- Keep ONLY the front frame and the lenses as seen from the front.
+- Preserve the exact style, color, thickness, and proportions of the front frame.
+- If removing temples leaves gaps or broken edges, reconstruct missing pixels so the front frame looks clean and continuous.
+- Output as a clean PNG with a transparent background (alpha).`,
               },
               {
                 type: "image_url",
