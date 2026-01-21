@@ -98,12 +98,10 @@ const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps)
       {/* Glasses Catalog */}
       <div className="border-t border-border pt-10">
         <h3 className="text-2xl font-bold mb-2 text-center">
-          {language === "pt" ? "Catálogo de Óculos" : "Glasses Catalog"}
+          {t("glassesCatalog")}
         </h3>
         <p className="text-muted-foreground text-center mb-6">
-          {language === "pt" 
-            ? "Clique em qualquer modelo para experimentar no seu rosto" 
-            : "Click on any model to try it on your face"}
+          {t("glassesCatalogDesc")}
         </p>
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -136,7 +134,7 @@ const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps)
                 }}
               >
                 <Eye className="w-3 h-3 mr-1" />
-                {language === "pt" ? "Experimentar" : "Try On"}
+                {t("tryOn")}
               </Button>
             </div>
           ))}
@@ -170,7 +168,7 @@ const RecommendationCard = ({
   rank: number;
   onTryOn: (glassesImage: string) => void;
 }) => {
-  const { language } = useLanguage();
+  const { t } = useLanguage();
   const glassesImage = findGlassesImage(recommendation.style);
   
   const getScoreColor = (score: number) => {
@@ -230,7 +228,7 @@ const RecommendationCard = ({
               onClick={() => onTryOn(glassesImage)}
             >
               <Eye className="w-3 h-3 mr-1" />
-              {language === "pt" ? "Experimentar" : "Try On"}
+              {t("tryOn")}
             </Button>
           )}
         </div>

@@ -345,10 +345,86 @@ export const translations: Translations = {
     en: "See the best styles and colors for you with detailed explanations",
     es: "Ve los mejores modelos y colores de gafas para ti con explicaciones detalladas",
   },
+  glassesCatalog: {
+    pt: "Catálogo de Óculos",
+    en: "Glasses Catalog",
+    es: "Catálogo de Gafas",
+  },
+  glassesCatalogDesc: {
+    pt: "Clique em qualquer modelo para experimentar no seu rosto",
+    en: "Click on any model to try it on your face",
+    es: "Haz clic en cualquier modelo para probarlo en tu rostro",
+  },
+  tryOn: {
+    pt: "Experimentar",
+    en: "Try On",
+    es: "Probar",
+  },
   tryNow: {
     pt: "Experimentar Agora",
     en: "Try Now",
     es: "Probar Ahora",
+  },
+  // GlassesTryOn
+  tryOnGlasses: {
+    pt: "Experimente os Óculos",
+    en: "Try On Glasses",
+    es: "Pruebe las Gafas",
+  },
+  dragToMove: {
+    pt: "Arraste para mover; use dois dedos para girar/zoom",
+    en: "Drag to move; use two fingers to rotate/zoom",
+    es: "Arrastra para mover; usa dos dedos para rotar/zoom",
+  },
+  yourPhoto: {
+    pt: "Sua foto",
+    en: "Your photo",
+    es: "Tu foto",
+  },
+  glasses: {
+    pt: "Óculos",
+    en: "Glasses",
+    es: "Gafas",
+  },
+  errorLoadingPhoto: {
+    pt: "Erro ao carregar foto",
+    en: "Error loading photo",
+    es: "Error al cargar foto",
+  },
+  loading: {
+    pt: "Carregando...",
+    en: "Loading...",
+    es: "Cargando...",
+  },
+  hideTemples: {
+    pt: "Ocultar hastes",
+    en: "Hide temples",
+    es: "Ocultar patillas",
+  },
+  hideTemplesDesc: {
+    pt: "Esconde as hastes laterais para visualização mais limpa.",
+    en: "Hides side temple arms for cleaner visualization.",
+    es: "Oculta las patillas laterales para una visualización más limpia.",
+  },
+  realisticMode: {
+    pt: "Modo realista",
+    en: "Realistic mode",
+    es: "Modo realista",
+  },
+  realisticModeDesc: {
+    pt: "Mistura a armação com a pele para parecer mais natural.",
+    en: "Blends the frame with skin tones for a more natural look.",
+    es: "Mezcla la montura con los tonos de piel para un aspecto más natural.",
+  },
+  reset: {
+    pt: "Resetar",
+    en: "Reset",
+    es: "Restablecer",
+  },
+  dragAndPinch: {
+    pt: "Arraste (1 dedo) e ajuste com pinça (2 dedos)",
+    en: "Drag (1 finger) and pinch (2 fingers)",
+    es: "Arrastra (1 dedo) y pellizca (2 dedos)",
   },
 };
 

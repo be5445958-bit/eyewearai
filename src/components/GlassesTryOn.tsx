@@ -72,7 +72,7 @@ const GlassesTryOn = ({
   glassesImage,
   facialLandmarks,
 }: GlassesTryOnProps) => {
-  const { language } = useLanguage();
+  const { t } = useLanguage();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const glassesRef = useRef<HTMLImageElement>(null);
@@ -505,12 +505,10 @@ const GlassesTryOn = ({
       <DialogContent className="max-w-lg p-0 overflow-hidden">
         <div className="p-4 pb-2 flex flex-col space-y-1.5 text-center sm:text-left">
           <DialogTitle>
-            {language === "pt" ? "Experimente os Óculos" : "Try On Glasses"}
+            {t("tryOnGlasses")}
           </DialogTitle>
           <DialogDescription>
-            {language === "pt"
-              ? "Arraste para mover; use dois dedos para girar/zoom"
-              : "Drag to move; use two fingers to rotate/zoom"}
+            {t("dragToMove")}
           </DialogDescription>
         </div>
 
@@ -522,7 +520,7 @@ const GlassesTryOn = ({
           {/* Background photo */}
           <img
             src={userPhoto}
-            alt={language === "pt" ? "Sua foto" : "Your photo"}
+            alt={t("yourPhoto")}
             className="absolute inset-0 w-full h-full object-cover"
             onLoad={handleBgLoad}
             onError={() => setBgError(true)}
@@ -534,7 +532,7 @@ const GlassesTryOn = ({
             <img
               ref={glassesRef}
               src={glassesSrc}
-              alt={language === "pt" ? "Óculos" : "Glasses"}
+              alt={t("glasses")}
               className="absolute select-none"
               style={{
                 left: glassesPos.x,
@@ -572,13 +570,7 @@ const GlassesTryOn = ({
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 {!bgError && <Loader2 className="h-5 w-5 animate-spin" />}
                 <span>
-                  {bgError
-                    ? language === "pt"
-                      ? "Erro ao carregar foto"
-                      : "Error loading photo"
-                    : language === "pt"
-                      ? "Carregando..."
-                      : "Loading..."}
+                  {bgError ? t("errorLoadingPhoto") : t("loading")}
                 </span>
               </div>
             </div>
@@ -637,12 +629,10 @@ const GlassesTryOn = ({
           <div className="flex items-center justify-between rounded-md border p-3">
             <div className="space-y-0.5">
               <Label htmlFor="temples-switch">
-                {language === "pt" ? "Ocultar hastes" : "Hide temples"}
+                {t("hideTemples")}
               </Label>
               <p className="text-xs text-muted-foreground">
-                {language === "pt"
-                  ? "Esconde as hastes laterais para visualização mais limpa."
-                  : "Hides side temple arms for cleaner visualization."}
+                {t("hideTemplesDesc")}
               </p>
             </div>
             <Switch
@@ -657,12 +647,10 @@ const GlassesTryOn = ({
           <div className="flex items-center justify-between rounded-md border p-3">
             <div className="space-y-0.5">
               <Label htmlFor="realism-switch">
-                {language === "pt" ? "Modo realista" : "Realistic mode"}
+                {t("realisticMode")}
               </Label>
               <p className="text-xs text-muted-foreground">
-                {language === "pt"
-                  ? "Mistura a armação com a pele para parecer mais natural."
-                  : "Blends the frame with skin tones for a more natural look."}
+                {t("realisticModeDesc")}
               </p>
             </div>
             <Switch
@@ -681,14 +669,12 @@ const GlassesTryOn = ({
             disabled={isLoading || bgError}
           >
             <RotateCcw className="w-4 h-4 mr-2" />
-            {language === "pt" ? "Resetar" : "Reset"}
+            {t("reset")}
           </Button>
 
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <Move className="w-3 h-3" />
-            {language === "pt"
-              ? "Arraste (1 dedo) e ajuste com pinça (2 dedos)"
-              : "Drag (1 finger) and pinch (2 fingers)"}
+            {t("dragAndPinch")}
           </div>
         </div>
       </DialogContent>
