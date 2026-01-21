@@ -2,3 +2,6 @@ project_id = "izeldrnkpclcsqgnlblb"
 
 [functions.analyze-face]
 verify_jwt = false
+
+[functions.process-glasses]
+verify_jwt = false
