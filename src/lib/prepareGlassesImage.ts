@@ -155,18 +155,21 @@ export const prepareGlassesImage = async (
     maxSize = 1024,
   } = opts;
 
-  // Try AI processing first if enabled
+  // Try AI processing first if enabled; even when AI succeeds, we still run the
+  // local cleanup pass (to guarantee true transparency and remove any baked-in
+  // checker/gray backgrounds some generators add).
+  let effectiveSrc = src;
   if (useAI && removeTemples) {
     const aiResult = await processWithAI(src);
     if (aiResult) {
       console.log("Successfully processed glasses with AI");
-      return aiResult;
+      effectiveSrc = aiResult;
+    } else {
+      console.log("AI processing failed, falling back to manual processing");
     }
-    console.log("AI processing failed, falling back to manual processing");
   }
 
-  // Fallback to manual processing
-  const img = await loadImage(src);
+  const img = await loadImage(effectiveSrc);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const anyImg = img as any;
   if (typeof anyImg.decode === "function") {
@@ -182,7 +185,12 @@ export const prepareGlassesImage = async (
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
-  // 1) Chroma-key-ish removal of near-white background
+  // 1) Background removal (near-white + neutral gray/checkerboard artifacts)
+  // Some generated PNGs include a gray checkerboard *as actual pixels* instead
+  // of real alpha. This removes neutral bright-ish pixels as background.
+  const neutralTolerance = 16; // max channel delta to be considered "neutral"
+  const neutralThreshold = 160; // start fading out neutral grays above this brightness
+  const neutralSoftness = 70; // fade range
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
@@ -195,6 +203,17 @@ export const prepareGlassesImage = async (
       const t = clamp((minRGB - whiteThreshold) / Math.max(1, softness), 0, 1);
       const keep = 1 - t;
       data[i + 3] = Math.round(a * keep);
+      continue;
+    }
+
+    const maxDiff = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b));
+    if (maxDiff <= neutralTolerance) {
+      const brightness = (r + g + b) / 3;
+      if (brightness >= neutralThreshold) {
+        const t = clamp((brightness - neutralThreshold) / Math.max(1, neutralSoftness), 0, 1);
+        const keep = 1 - t;
+        data[i + 3] = Math.round(a * keep);
+      }
     }
   }
 
