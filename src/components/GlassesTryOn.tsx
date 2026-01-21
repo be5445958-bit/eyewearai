@@ -38,6 +38,9 @@ const ROT_MAX = 60;
 const OPACITY_MIN = 40;
 const OPACITY_MAX = 100;
 
+// Bump this to invalidate cached prepared PNGs after changing preprocessing logic.
+const PREPARE_CACHE_VERSION = "v2";
+
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 type Point = { x: number; y: number };
@@ -154,7 +157,9 @@ const GlassesTryOn = ({
         return;
       }
 
-      const cached = glassesCacheRef.current.get(glassesImage);
+      const cacheKey = `${PREPARE_CACHE_VERSION}:${glassesImage}`;
+
+      const cached = glassesCacheRef.current.get(cacheKey);
       if (cached) {
         setPreparedGlassesSrc(cached);
         setIsPreparingGlasses(false);
@@ -167,7 +172,7 @@ const GlassesTryOn = ({
       try {
         const processed = await prepareGlassesImage(glassesImage);
         if (cancelled) return;
-        glassesCacheRef.current.set(glassesImage, processed);
+        glassesCacheRef.current.set(cacheKey, processed);
         setPreparedGlassesSrc(processed);
       } catch {
         if (cancelled) return;
