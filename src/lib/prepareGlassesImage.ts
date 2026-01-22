@@ -17,6 +17,12 @@ export interface PrepareGlassesImageOptions {
   maxSize?: number;
 }
 
+// In-memory caches to avoid repeating expensive work during a session.
+// (Avoid localStorage for large dataURLs; they can exceed quota on mobile.)
+const base64Cache = new Map<string, string>();
+const aiProcessedUrlCache = new Map<string, string>();
+const preparedDataUrlCache = new Map<string, string>();
+
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 const loadImage = (src: string): Promise<HTMLImageElement> => {
@@ -52,8 +58,14 @@ const drawResized = (img: HTMLImageElement, maxSize: number) => {
  * Converts image to base64 data URL
  */
 const imageToBase64 = async (src: string): Promise<string> => {
+  const cached = base64Cache.get(src);
+  if (cached) return cached;
+
   // If already a data URL, return as-is
-  if (src.startsWith("data:")) return src;
+  if (src.startsWith("data:")) {
+    base64Cache.set(src, src);
+    return src;
+  }
   
   const img = await loadImage(src);
   const canvas = document.createElement("canvas");
@@ -62,7 +74,9 @@ const imageToBase64 = async (src: string): Promise<string> => {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Could not get canvas context");
   ctx.drawImage(img, 0, 0);
-  return canvas.toDataURL("image/png");
+  const dataUrl = canvas.toDataURL("image/png");
+  base64Cache.set(src, dataUrl);
+  return dataUrl;
 };
 
 /**
@@ -70,6 +84,9 @@ const imageToBase64 = async (src: string): Promise<string> => {
  */
 const processWithAI = async (imageUrl: string): Promise<string | null> => {
   try {
+    const cached = aiProcessedUrlCache.get(imageUrl);
+    if (cached) return cached;
+
     // Convert to base64 if it's a local asset
     let urlToSend = imageUrl;
     if (!imageUrl.startsWith("http") || imageUrl.includes("localhost")) {
@@ -86,6 +103,7 @@ const processWithAI = async (imageUrl: string): Promise<string | null> => {
     }
 
     if (data?.success && data?.processedImageUrl) {
+      aiProcessedUrlCache.set(imageUrl, data.processedImageUrl);
       return data.processedImageUrl;
     }
 
@@ -145,6 +163,10 @@ export const prepareGlassesImage = async (
   src: string,
   opts: PrepareGlassesImageOptions = {}
 ): Promise<string> => {
+  const cacheKey = JSON.stringify({ src, opts });
+  const cachedPrepared = preparedDataUrlCache.get(cacheKey);
+  if (cachedPrepared) return cachedPrepared;
+
   const {
     useAI = true,
     removeTemples = true,
@@ -246,7 +268,9 @@ export const prepareGlassesImage = async (
   }
 
   if (maxX < 0 || maxY < 0) {
-    return canvas.toDataURL("image/png");
+    const finalUrl = canvas.toDataURL("image/png");
+    preparedDataUrlCache.set(cacheKey, finalUrl);
+    return finalUrl;
   }
 
   const cropW = maxX - minX + 1;
@@ -270,5 +294,7 @@ export const prepareGlassesImage = async (
   if (!outCtx) throw new Error("Could not get output canvas context");
 
   outCtx.drawImage(canvas, sx, sy, outW, outH, 0, 0, outW, outH);
-  return out.toDataURL("image/png");
+  const finalUrl = out.toDataURL("image/png");
+  preparedDataUrlCache.set(cacheKey, finalUrl);
+  return finalUrl;
 };

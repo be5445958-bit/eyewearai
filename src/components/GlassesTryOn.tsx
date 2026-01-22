@@ -180,8 +180,9 @@ const GlassesTryOn = ({
         return;
       }
 
+      // Show something immediately (no blank/loader-only) while we process in background.
       setIsPreparingGlasses(true);
-      setPreparedGlassesSrc(null);
+      setPreparedGlassesSrc(glassesImage);
 
       try {
         const processed = await prepareGlassesImage(glassesImage);
