@@ -30,7 +30,7 @@ interface GlassesTryOnProps {
   facialLandmarks?: FacialLandmarks;
 }
 
-const CONTAINER_HEIGHT = 450;
+const DEFAULT_CONTAINER_HEIGHT = 450;
 const SCALE_MIN = 50;
 const SCALE_MAX = 200;
 const ROT_MIN = -60;
@@ -78,6 +78,7 @@ const GlassesTryOn = ({
   const glassesRef = useRef<HTMLImageElement>(null);
 
   const [containerWidth, setContainerWidth] = useState(400);
+  const [containerHeight, setContainerHeight] = useState(DEFAULT_CONTAINER_HEIGHT);
   const [bgLoaded, setBgLoaded] = useState(false);
   const [glassesLoaded, setGlassesLoaded] = useState(false);
   const [bgError, setBgError] = useState(false);
@@ -122,12 +123,25 @@ const GlassesTryOn = ({
       }
     };
 
-    const timer = window.setTimeout(updateWidth, 100);
+    const updateHeight = () => {
+      // Aim: stable across devices, but still responsive.
+      // Keep within reasonable bounds so the UI doesn't overflow small screens.
+      const vh = typeof window !== "undefined" ? window.innerHeight : DEFAULT_CONTAINER_HEIGHT;
+      const next = clamp(Math.round(vh * 0.58), 360, 560);
+      setContainerHeight(next);
+    };
+
+    const timer = window.setTimeout(() => {
+      updateWidth();
+      updateHeight();
+    }, 100);
     window.addEventListener("resize", updateWidth);
+    window.addEventListener("resize", updateHeight);
 
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener("resize", updateWidth);
+      window.removeEventListener("resize", updateHeight);
     };
   }, [open]);
 
@@ -223,22 +237,22 @@ const GlassesTryOn = ({
       if (!facialLandmarks || !imageDims) return null;
 
       // Calculate offset for the image within the container (object-cover centering)
-      const containerAspect = containerWidth / CONTAINER_HEIGHT;
+      const containerAspect = containerWidth / containerHeight;
       const imageAspect = imageDims.natural.w / imageDims.natural.h;
 
       let offsetX = 0;
       let offsetY = 0;
       let effectiveW = containerWidth;
-      let effectiveH = CONTAINER_HEIGHT;
+      let effectiveH = containerHeight;
 
       if (imageAspect > containerAspect) {
         // Image is wider - cropped on sides
-        effectiveW = CONTAINER_HEIGHT * imageAspect;
+        effectiveW = containerHeight * imageAspect;
         offsetX = (effectiveW - containerWidth) / 2;
       } else {
         // Image is taller - cropped on top/bottom
         effectiveH = containerWidth / imageAspect;
-        offsetY = (effectiveH - CONTAINER_HEIGHT) / 2;
+        offsetY = (effectiveH - containerHeight) / 2;
       }
 
       const map = (p?: { x: number; y: number }): Point | null =>
@@ -288,7 +302,7 @@ const GlassesTryOn = ({
         y = Math.max(y, browAvgY + eyeDistance * 0.1);
       }
 
-      y = clamp(y, CONTAINER_HEIGHT * 0.15, CONTAINER_HEIGHT * 0.85);
+      y = clamp(y, containerHeight * 0.15, containerHeight * 0.85);
 
       // --- Scale ---
       // Base width from eyes (interpupillary distance). Typical frame width is ~2.0–2.3x eye-center distance.
@@ -310,6 +324,11 @@ const GlassesTryOn = ({
         }
       }
 
+      // Prevent "tiny glasses" on some mobile devices / landmark edge cases.
+      // Ensure the frame never starts below a sensible fraction of the visible container width.
+      const minTargetWidth = containerWidth < 420 ? containerWidth * 0.62 : containerWidth * 0.55;
+      targetWidth = Math.max(targetWidth, minTargetWidth);
+
       const scale = clamp(targetWidth / Math.max(1, glassesNaturalW), 0.2, 4);
 
       // --- Angle ---
@@ -327,7 +346,7 @@ const GlassesTryOn = ({
 
       return { pos: { x, y }, scale, angle };
     },
-    [facialLandmarks, imageDims, containerWidth]
+    [facialLandmarks, imageDims, containerWidth, containerHeight]
   );
 
   // Position glasses when background and glasses are loaded
@@ -345,10 +364,10 @@ const GlassesTryOn = ({
     }
 
     // Default positioning - center of upper third
-    setGlassesPos({ x: containerWidth / 2, y: CONTAINER_HEIGHT * 0.35 });
+    setGlassesPos({ x: containerWidth / 2, y: containerHeight * 0.35 });
     setBaseScale((containerWidth * 0.5) / Math.max(1, glassesNaturalW));
     setBaseAngle(0);
-  }, [bgLoaded, glassesLoaded, imageDims, computeAutoFit, containerWidth]);
+  }, [bgLoaded, glassesLoaded, imageDims, computeAutoFit, containerWidth, containerHeight]);
 
   const handleScaleChange = useCallback(
     (values: number[]) => {
@@ -387,8 +406,8 @@ const GlassesTryOn = ({
       }
     }
 
-    setGlassesPos({ x: containerWidth / 2, y: CONTAINER_HEIGHT * 0.35 });
-  }, [computeAutoFit, containerWidth]);
+    setGlassesPos({ x: containerWidth / 2, y: containerHeight * 0.35 });
+  }, [computeAutoFit, containerWidth, containerHeight]);
 
   // Pointer-based drag + pinch (scale/rotate) gestures (mobile-friendly)
   const pointersRef = useRef(new Map<number, Point>());
@@ -515,7 +534,7 @@ const GlassesTryOn = ({
         <div
           ref={containerRef}
           className="relative w-full bg-muted overflow-hidden select-none"
-          style={{ height: `${CONTAINER_HEIGHT}px` }}
+          style={{ height: `${containerHeight}px` }}
         >
           {/* Background photo */}
           <img

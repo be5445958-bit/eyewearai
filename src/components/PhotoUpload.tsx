@@ -51,7 +51,7 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
   const [uploadProgress, setUploadProgress] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -113,7 +113,7 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
 
       // Call the analysis backend function (it will create a signed URL and cleanup)
       const { data, error } = await supabase.functions.invoke("analyze-face", {
-        body: { storagePath: fileName },
+        body: { storagePath: fileName, language },
       });
 
       if (error) {

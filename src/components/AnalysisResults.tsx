@@ -114,15 +114,15 @@ const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps)
               <div className="aspect-square relative mb-3 bg-white/5 rounded-lg overflow-hidden">
                 <img
                   src={style.image}
-                  alt={language === "pt" ? style.namePt : style.name}
+                  alt={style.name[language]}
                   className="w-full h-full object-cover"
                 />
               </div>
               <h4 className="font-semibold text-foreground">
-                {language === "pt" ? style.namePt : style.name}
+                {style.name[language]}
               </h4>
               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                {style.description}
+                {style.description[language]}
               </p>
               <Button 
                 variant="outline" 
