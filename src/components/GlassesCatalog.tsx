@@ -7,79 +7,139 @@ import clubmasterImg from "@/assets/glasses/clubmaster.png";
 import ovalImg from "@/assets/glasses/oval.png";
 import geometricImg from "@/assets/glasses/geometric.png";
 
+export type Language = "pt" | "en" | "es";
+
+export type LocalizedText = Record<Language, string>;
+export type LocalizedList = Record<Language, string[]>;
+
 export interface GlassesStyle {
   id: string;
-  name: string;
-  namePt: string;
+  name: LocalizedText;
   image: string;
-  description: string;
-  bestFor: string[];
+  description: LocalizedText;
+  bestFor: LocalizedList;
 }
 
 export const glassesCatalog: GlassesStyle[] = [
   {
     id: "aviador",
-    name: "Aviator",
-    namePt: "Aviador",
+    name: { pt: "Aviador", en: "Aviator", es: "Aviador" },
     image: aviatorImg,
-    description: "Estilo clássico com lentes em formato de gota e armação metálica fina.",
-    bestFor: ["Quadrado", "Retangular", "Oval"],
+    description: {
+      pt: "Estilo clássico com lentes em formato de gota e armação metálica fina.",
+      en: "Classic style with teardrop lenses and a thin metal frame.",
+      es: "Estilo clásico con lentes en forma de lágrima y montura metálica fina.",
+    },
+    bestFor: {
+      pt: ["Quadrado", "Retangular", "Oval"],
+      en: ["Square", "Rectangular", "Oval"],
+      es: ["Cuadrado", "Rectangular", "Ovalado"],
+    },
   },
   {
     id: "wayfarer",
-    name: "Wayfarer",
-    namePt: "Wayfarer",
+    name: { pt: "Wayfarer", en: "Wayfarer", es: "Wayfarer" },
     image: wayfarerImg,
-    description: "Design icônico trapezoidal que combina com quase todos os formatos de rosto.",
-    bestFor: ["Oval", "Redondo", "Coração"],
+    description: {
+      pt: "Design icônico trapezoidal que combina com quase todos os formatos de rosto.",
+      en: "Iconic trapezoid design that works with almost every face shape.",
+      es: "Diseño trapezoidal icónico que combina con casi cualquier forma de rostro.",
+    },
+    bestFor: {
+      pt: ["Oval", "Redondo", "Coração"],
+      en: ["Oval", "Round", "Heart"],
+      es: ["Ovalado", "Redondo", "Corazón"],
+    },
   },
   {
     id: "redondo",
-    name: "Round",
-    namePt: "Redondo",
+    name: { pt: "Redondo", en: "Round", es: "Redondo" },
     image: roundImg,
-    description: "Armação circular que adiciona suavidade a rostos angulares.",
-    bestFor: ["Quadrado", "Retangular", "Diamante"],
+    description: {
+      pt: "Armação circular que adiciona suavidade a rostos angulares.",
+      en: "Circular frame that softens angular faces.",
+      es: "Montura circular que suaviza rostros angulosos.",
+    },
+    bestFor: {
+      pt: ["Quadrado", "Retangular", "Diamante"],
+      en: ["Square", "Rectangular", "Diamond"],
+      es: ["Cuadrado", "Rectangular", "Diamante"],
+    },
   },
   {
     id: "cat-eye",
-    name: "Cat-Eye",
-    namePt: "Gatinho",
+    name: { pt: "Gatinho", en: "Cat-Eye", es: "Ojo de gato" },
     image: catEyeImg,
-    description: "Elegante e feminino com cantos levantados que realçam as maçãs do rosto.",
-    bestFor: ["Quadrado", "Redondo", "Coração"],
+    description: {
+      pt: "Elegante e feminino com cantos levantados que realçam as maçãs do rosto.",
+      en: "Elegant upswept corners that highlight cheekbones.",
+      es: "Elegante con esquinas elevadas que resaltan los pómulos.",
+    },
+    bestFor: {
+      pt: ["Quadrado", "Redondo", "Coração"],
+      en: ["Square", "Round", "Heart"],
+      es: ["Cuadrado", "Redondo", "Corazón"],
+    },
   },
   {
     id: "retangular",
-    name: "Rectangular",
-    namePt: "Retangular",
+    name: { pt: "Retangular", en: "Rectangular", es: "Rectangular" },
     image: rectangularImg,
-    description: "Linhas retas e modernas ideais para looks profissionais.",
-    bestFor: ["Redondo", "Oval", "Oblongo"],
+    description: {
+      pt: "Linhas retas e modernas ideais para looks profissionais.",
+      en: "Straight modern lines—great for a professional look.",
+      es: "Líneas rectas y modernas, ideales para un look profesional.",
+    },
+    bestFor: {
+      pt: ["Redondo", "Oval", "Oblongo"],
+      en: ["Round", "Oval", "Oblong"],
+      es: ["Redondo", "Ovalado", "Oblongo"],
+    },
   },
   {
     id: "clubmaster",
-    name: "Clubmaster",
-    namePt: "Clubmaster",
+    name: { pt: "Clubmaster", en: "Clubmaster", es: "Clubmaster" },
     image: clubmasterImg,
-    description: "Retrô com parte superior mais grossa, combina sofisticação e estilo.",
-    bestFor: ["Oval", "Redondo", "Diamante"],
+    description: {
+      pt: "Retrô com parte superior mais grossa, combina sofisticação e estilo.",
+      en: "Retro browline frame that blends sophistication and style.",
+      es: "Montura retro tipo browline que combina sofisticación y estilo.",
+    },
+    bestFor: {
+      pt: ["Oval", "Redondo", "Diamante"],
+      en: ["Oval", "Round", "Diamond"],
+      es: ["Ovalado", "Redondo", "Diamante"],
+    },
   },
   {
     id: "oval",
-    name: "Oval",
-    namePt: "Oval",
+    name: { pt: "Oval", en: "Oval", es: "Oval" },
     image: ovalImg,
-    description: "Formato suave e discreto que combina com rostos mais angulares.",
-    bestFor: ["Quadrado", "Diamante", "Coração"],
+    description: {
+      pt: "Formato suave e discreto que combina com rostos mais angulares.",
+      en: "Soft, understated shape that complements more angular faces.",
+      es: "Forma suave y discreta que complementa rostros más angulosos.",
+    },
+    bestFor: {
+      pt: ["Quadrado", "Diamante", "Coração"],
+      en: ["Square", "Diamond", "Heart"],
+      es: ["Cuadrado", "Diamante", "Corazón"],
+    },
   },
   {
     id: "geometrico",
-    name: "Geometric",
-    namePt: "Geométrico",
+    name: { pt: "Geométrico", en: "Geometric", es: "Geométrico" },
     image: geometricImg,
-    description: "Moderno e ousado com formas hexagonais ou octogonais.",
-    bestFor: ["Oval", "Oblongo", "Redondo"],
+    description: {
+      pt: "Moderno e ousado com formas hexagonais ou octogonais.",
+      en: "Bold modern shapes (hexagonal or octagonal) for a standout look.",
+      es: "Formas modernas y atrevidas (hexagonales u octogonales) para destacar.",
+    },
+    bestFor: {
+      pt: ["Oval", "Oblongo", "Redondo"],
+      en: ["Oval", "Oblong", "Round"],
+      es: ["Ovalado", "Oblongo", "Redondo"],
+    },
   },
 ];
 
@@ -88,10 +148,10 @@ export const findGlassesImage = (styleName: string): string | null => {
   
   const style = glassesCatalog.find(
     (g) =>
-      normalizedName.includes(g.name.toLowerCase()) ||
-      normalizedName.includes(g.namePt.toLowerCase()) ||
-      g.name.toLowerCase().includes(normalizedName) ||
-      g.namePt.toLowerCase().includes(normalizedName)
+      Object.values(g.name).some((n) => {
+        const v = n.toLowerCase();
+        return normalizedName.includes(v) || v.includes(normalizedName);
+      })
   );
   
   return style?.image || null;
@@ -102,6 +162,8 @@ interface GlassesCatalogDisplayProps {
 }
 
 const GlassesCatalogDisplay = ({ className = "" }: GlassesCatalogDisplayProps) => {
+  // NOTE: This component is used in multiple places; keep it language-agnostic.
+  // If you need localized text here, pass it via props from a component with access to LanguageContext.
   return (
     <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 ${className}`}>
       {glassesCatalog.map((style) => (
@@ -112,12 +174,12 @@ const GlassesCatalogDisplay = ({ className = "" }: GlassesCatalogDisplayProps) =
           <div className="aspect-square relative mb-3 bg-white/5 rounded-lg overflow-hidden">
             <img
               src={style.image}
-              alt={style.namePt}
+              alt={style.name.pt}
               className="w-full h-full object-cover"
             />
           </div>
-          <h4 className="font-semibold text-foreground">{style.namePt}</h4>
-          <p className="text-xs text-muted-foreground mt-1">{style.description}</p>
+          <h4 className="font-semibold text-foreground">{style.name.pt}</h4>
+          <p className="text-xs text-muted-foreground mt-1">{style.description.pt}</p>
         </div>
       ))}
     </div>
