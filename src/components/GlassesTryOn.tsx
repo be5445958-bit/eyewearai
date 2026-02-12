@@ -31,8 +31,8 @@ interface GlassesTryOnProps {
 }
 
 const DEFAULT_CONTAINER_HEIGHT = 450;
-const SCALE_MIN = 50;
-const SCALE_MAX = 200;
+const SCALE_MIN = 30;
+const SCALE_MAX = 350;
 const ROT_MIN = -60;
 const ROT_MAX = 60;
 const OPACITY_MIN = 40;
