@@ -277,57 +277,51 @@ const GlassesTryOn = ({
       // --- Position (X/Y) ---
       // X: center between eyes, with slight nose bridge correction
       let x = eyeCenter.x;
-      if (noseBridge) x = x * 0.85 + noseBridge.x * 0.15;
+      if (noseBridge) x = x * 0.8 + noseBridge.x * 0.2;
 
-      // Y: The glasses frame should sit EXACTLY at eye level
-      // The center of the glasses lens should align with the eyes
-      // We add a small offset DOWN because the glasses sit on the nose bridge
+      // Y: Glasses sit slightly below eye center (resting on the nose bridge).
+      // The offset is small so lenses align with the pupils.
       let y = eyeCenter.y;
       
-      // Add a small downward offset (glasses rest on nose, not floating at eye level)
-      // This offset is proportional to the eye distance for consistency across face sizes
-      const noseRestOffset = eyeDistance * 0.15;
+      // Small downward nudge — glasses rest on nose, not floating at eye center
+      const noseRestOffset = eyeDistance * 0.08;
       y = y + noseRestOffset;
 
-      // If we have nose bridge info, use it to fine-tune (but don't go too far down)
+      // Fine-tune with nose bridge if available (blend gently)
       if (noseBridge) {
-        // The nose bridge is below the eyes - we want to be closer to eyes than nose
-        const noseAdjustment = (noseBridge.y - eyeCenter.y) * 0.1;
+        const noseAdjustment = (noseBridge.y - eyeCenter.y) * 0.15;
         y = y + noseAdjustment;
       }
 
-      // Ensure we don't go above eyebrows (safety check)
+      // Safety: don't go above eyebrows
       if (lBrow && rBrow) {
         const browAvgY = (lBrow.y + rBrow.y) / 2;
-        // Glasses should be at least slightly below eyebrows
-        y = Math.max(y, browAvgY + eyeDistance * 0.1);
+        y = Math.max(y, browAvgY + eyeDistance * 0.05);
       }
 
       y = clamp(y, containerHeight * 0.15, containerHeight * 0.85);
 
       // --- Scale ---
-      // Base width from eyes (interpupillary distance). Typical frame width is ~2.0–2.3x eye-center distance.
-      const targetFromEyes = eyeDistance * 2.15;
+      // Frame width ≈ 2.3× interpupillary distance (slightly wider for realistic fit)
+      const targetFromEyes = eyeDistance * 2.3;
       let targetWidth = targetFromEyes;
 
       if (lEar && rEar) {
         const earDistance = dist(lEar, rEar);
         const isEarDistancePlausible = earDistance > eyeDistance * 2.2 && earDistance < eyeDistance * 4.5;
         if (isEarDistancePlausible) {
-          // Frame should be slightly smaller than ear-to-ear distance.
-          const earBased = earDistance * 0.92;
+          const earBased = earDistance * 0.88;
           targetWidth = clamp(targetFromEyes, earBased * 0.85, earBased);
         }
       } else if (typeof facialLandmarks.faceWidth === "number") {
         const faceWidthPx = facialLandmarks.faceWidth * effectiveW;
         if (faceWidthPx > 1) {
-          targetWidth = clamp(targetFromEyes, faceWidthPx * 0.75, faceWidthPx * 0.92);
+          targetWidth = clamp(targetFromEyes, faceWidthPx * 0.78, faceWidthPx * 0.92);
         }
       }
 
-      // Prevent "tiny glasses" on some mobile devices / landmark edge cases.
-      // Ensure the frame never starts below a sensible fraction of the visible container width.
-      const minTargetWidth = containerWidth < 420 ? containerWidth * 0.62 : containerWidth * 0.55;
+      // Prevent tiny glasses on small screens
+      const minTargetWidth = containerWidth < 420 ? containerWidth * 0.65 : containerWidth * 0.58;
       targetWidth = Math.max(targetWidth, minTargetWidth);
 
       const scale = clamp(targetWidth / Math.max(1, glassesNaturalW), 0.2, 4);
