@@ -208,12 +208,12 @@ export const prepareGlassesImage = async (
   const data = imageData.data;
 
   // 1) Background removal — remove near-white pixels AND checkerboard artifacts.
-  // Checkerboard patterns (alternating ~204/~255 gray) appear when AI returns
-  // transparency rendered as visible pixels. We target bright neutral pixels
-  // (brightness > 190, low channel variance) to catch both white bg and checkerboard,
-  // while preserving dark frames (brightness < 190).
-  const checkerMinBrightness = 190;
-  const checkerMaxDelta = 20; // max channel difference to count as "neutral"
+  // Checkerboard = alternating ~204 / ~255 gray squares rendered when AI returns
+  // "transparent" as visible pixels. We aggressively remove ALL bright neutral
+  // pixels (brightness >= 150, low chroma) while preserving coloured / dark frames.
+  const CHECKER_MIN = 150;   // any neutral pixel brighter than this is suspect
+  const CHECKER_MAX_DELTA = 25; // max R-G-B spread to count as "neutral gray"
+
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
@@ -226,14 +226,15 @@ export const prepareGlassesImage = async (
     const brightness = (r + g + b) / 3;
     const delta = maxRGB - minRGB;
 
-    // Near-white background
+    // Near-white product background (very bright)
     if (minRGB >= whiteThreshold) {
       const t = clamp((minRGB - whiteThreshold) / Math.max(1, softness), 0, 1);
       data[i + 3] = Math.round(a * (1 - t));
     }
-    // Checkerboard: bright + neutral (low color variance)
-    else if (brightness >= checkerMinBrightness && delta <= checkerMaxDelta) {
-      const t = clamp((brightness - checkerMinBrightness) / 65, 0, 1);
+    // Checkerboard / light-gray neutral pixels — fade out progressively
+    else if (brightness >= CHECKER_MIN && delta <= CHECKER_MAX_DELTA) {
+      // Stronger fade the brighter the pixel is
+      const t = clamp((brightness - CHECKER_MIN) / 105, 0, 1);
       data[i + 3] = Math.round(a * (1 - t));
     }
   }
