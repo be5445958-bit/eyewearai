@@ -207,12 +207,8 @@ export const prepareGlassesImage = async (
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
-  // 1) Background removal (near-white + neutral gray/checkerboard artifacts)
-  // Some generated PNGs include a gray checkerboard *as actual pixels* instead
-  // of real alpha. This removes neutral bright-ish pixels as background.
-  const neutralTolerance = 16; // max channel delta to be considered "neutral"
-  const neutralThreshold = 160; // start fading out neutral grays above this brightness
-  const neutralSoftness = 70; // fade range
+  // 1) Background removal — ONLY remove near-pure-white pixels.
+  // Previous versions also removed neutral grays, which destroyed dark frames.
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
@@ -225,17 +221,6 @@ export const prepareGlassesImage = async (
       const t = clamp((minRGB - whiteThreshold) / Math.max(1, softness), 0, 1);
       const keep = 1 - t;
       data[i + 3] = Math.round(a * keep);
-      continue;
-    }
-
-    const maxDiff = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b));
-    if (maxDiff <= neutralTolerance) {
-      const brightness = (r + g + b) / 3;
-      if (brightness >= neutralThreshold) {
-        const t = clamp((brightness - neutralThreshold) / Math.max(1, neutralSoftness), 0, 1);
-        const keep = 1 - t;
-        data[i + 3] = Math.round(a * keep);
-      }
     }
   }
 
