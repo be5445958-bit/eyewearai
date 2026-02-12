@@ -563,10 +563,10 @@ const GlassesTryOn = ({
                 willChange: "transform",
                 // Mask to hide temple arms - fades out the left and right 35% of the image (95% transparency)
                 maskImage: hideTemples
-                  ? "linear-gradient(to right, transparent 0%, transparent 10%, black 35%, black 65%, transparent 90%, transparent 100%)"
+                  ? "linear-gradient(to right, transparent 0%, transparent 5%, black 20%, black 80%, transparent 95%, transparent 100%)"
                   : "none",
                 WebkitMaskImage: hideTemples
-                  ? "linear-gradient(to right, transparent 0%, transparent 10%, black 35%, black 65%, transparent 90%, transparent 100%)"
+                  ? "linear-gradient(to right, transparent 0%, transparent 5%, black 20%, black 80%, transparent 95%, transparent 100%)"
                   : "none",
               }}
               onLoad={handleGlassesLoad}
