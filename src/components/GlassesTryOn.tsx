@@ -7,6 +7,7 @@ import {
   Loader2,
   RotateCw,
   Eye,
+  ScanFace,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -21,6 +22,7 @@ import {
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { FacialLandmarks } from "./PhotoUpload";
 import { prepareGlassesImage } from "@/lib/prepareGlassesImage";
+import { useMediaPipeFaceDetection } from "@/hooks/useMediaPipeFaceDetection";
 
 interface GlassesTryOnProps {
   open: boolean;
@@ -102,6 +104,10 @@ const GlassesTryOn = ({
 
   const glassesSrc = preparedGlassesSrc ?? glassesImage;
 
+  // MediaPipe face detection
+  const mediaPipe = useMediaPipeFaceDetection();
+  const [mediaPipeStatusMsg, setMediaPipeStatusMsg] = useState<string>("");
+
   // Image dimensions for eye position calculations
   const [imageDims, setImageDims] = useState<{
     natural: { w: number; h: number };
@@ -158,6 +164,8 @@ const GlassesTryOn = ({
     setPreparedGlassesSrc(null);
     setIsPreparingGlasses(false);
     setIsDragging(false);
+    mediaPipe.reset();
+    setMediaPipeStatusMsg("");
   }, [open, userPhoto, glassesImage]);
 
   // Prepare glasses PNG (remove white background + crop) for better realism
@@ -235,7 +243,19 @@ const GlassesTryOn = ({
 
   const computeAutoFit = useCallback(
     (glassesNaturalW: number): FitResult | null => {
-      if (!facialLandmarks || !imageDims) return null;
+      // Prefer MediaPipe landmarks over AI-provided ones
+      const mpLandmarks = mediaPipe.landmarks;
+      const effectiveLandmarks: FacialLandmarks | undefined = mpLandmarks
+        ? {
+            leftEye: mpLandmarks.leftEye,
+            rightEye: mpLandmarks.rightEye,
+            noseBridge: mpLandmarks.noseBridge,
+            faceRotation: mpLandmarks.faceRotation,
+            faceWidth: mpLandmarks.faceWidth,
+          }
+        : facialLandmarks;
+
+      if (!effectiveLandmarks || !imageDims) return null;
 
       // Calculate offset for the image within the container (object-cover centering)
       const containerAspect = containerWidth / containerHeight;
@@ -259,20 +279,20 @@ const GlassesTryOn = ({
       const map = (p?: { x: number; y: number }): Point | null =>
         p ? { x: p.x * effectiveW - offsetX, y: p.y * effectiveH - offsetY } : null;
 
-      const lEye = map(facialLandmarks.leftEye);
-      const rEye = map(facialLandmarks.rightEye);
+      const lEye = map(effectiveLandmarks.leftEye);
+      const rEye = map(effectiveLandmarks.rightEye);
       if (!lEye || !rEye) return null;
 
       const eyeCenter = center(lEye, rEye);
       const eyeDistance = Math.max(1, dist(lEye, rEye));
       const eyeAngle = angleDeg(lEye, rEye);
 
-      const noseBridge = map(facialLandmarks.noseBridge);
-      const noseTop = map(facialLandmarks.noseTop);
-      const lBrow = map(facialLandmarks.leftEyebrow);
-      const rBrow = map(facialLandmarks.rightEyebrow);
-      const lEar = map(facialLandmarks.leftEar);
-      const rEar = map(facialLandmarks.rightEar);
+      const noseBridge = map(effectiveLandmarks.noseBridge);
+      const noseTop = map(effectiveLandmarks.noseTop);
+      const lBrow = map(effectiveLandmarks.leftEyebrow);
+      const rBrow = map(effectiveLandmarks.rightEyebrow);
+      const lEar = map(effectiveLandmarks.leftEar);
+      const rEar = map(effectiveLandmarks.rightEar);
 
       // --- Position (X/Y) ---
       // X: center between eyes, with slight nose bridge correction
@@ -313,8 +333,8 @@ const GlassesTryOn = ({
           const earBased = earDistance * 0.88;
           targetWidth = clamp(targetFromEyes, earBased * 0.85, earBased);
         }
-      } else if (typeof facialLandmarks.faceWidth === "number") {
-        const faceWidthPx = facialLandmarks.faceWidth * effectiveW;
+      } else if (typeof effectiveLandmarks.faceWidth === "number") {
+        const faceWidthPx = effectiveLandmarks.faceWidth * effectiveW;
         if (faceWidthPx > 1) {
           targetWidth = clamp(targetFromEyes, faceWidthPx * 0.78, faceWidthPx * 0.92);
         }
@@ -329,8 +349,8 @@ const GlassesTryOn = ({
       // --- Angle ---
       // Prefer eye-line angle (usually more consistent than LLM-provided rotation).
       let angle = eyeAngle;
-      if (typeof facialLandmarks.faceRotation === "number") {
-        const rot = facialLandmarks.faceRotation;
+      if (typeof effectiveLandmarks.faceRotation === "number") {
+        const rot = effectiveLandmarks.faceRotation;
         // Only blend when it roughly agrees (prevents wild mis-rotations).
         if (Math.abs(rot - eyeAngle) <= 12) {
           angle = eyeAngle * 0.7 + rot * 0.3;
@@ -341,10 +361,34 @@ const GlassesTryOn = ({
 
       return { pos: { x, y }, scale, angle };
     },
-    [facialLandmarks, imageDims, containerWidth, containerHeight]
+    [mediaPipe.landmarks, facialLandmarks, imageDims, containerWidth, containerHeight]
   );
 
-  // Position glasses when background and glasses are loaded
+  // Run MediaPipe face detection when the dialog opens and background loads
+  useEffect(() => {
+    if (!open || !bgLoaded || !userPhoto) return;
+    // Only detect if we haven't already detected for this photo
+    if (mediaPipe.status === "detected" || mediaPipe.status === "loading") return;
+
+    setMediaPipeStatusMsg(t("analyzingFace"));
+    mediaPipe.detect(userPhoto);
+  }, [open, bgLoaded, userPhoto, mediaPipe.status]);
+
+  // Update status message based on MediaPipe status
+  useEffect(() => {
+    if (mediaPipe.status === "detected") {
+      setMediaPipeStatusMsg(t("faceDetected"));
+      // Clear message after 2 seconds
+      const timer = setTimeout(() => setMediaPipeStatusMsg(""), 2000);
+      return () => clearTimeout(timer);
+    } else if (mediaPipe.status === "no-face") {
+      setMediaPipeStatusMsg(t("noFaceDetected"));
+    } else if (mediaPipe.status === "error") {
+      setMediaPipeStatusMsg("");
+    }
+  }, [mediaPipe.status, t]);
+
+  // Position glasses when background and glasses are loaded (also re-run when MediaPipe detects)
   useEffect(() => {
     if (!bgLoaded || !glassesLoaded || !imageDims || !glassesRef.current) return;
 
@@ -587,6 +631,20 @@ const GlassesTryOn = ({
                   {bgError ? t("errorLoadingPhoto") : t("loading")}
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* MediaPipe detection status badge */}
+          {mediaPipeStatusMsg && !isLoading && !bgError && (
+            <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background/80 backdrop-blur-sm text-xs text-foreground shadow-sm">
+              {mediaPipe.status === "loading" ? (
+                <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              ) : mediaPipe.status === "detected" ? (
+                <ScanFace className="h-3 w-3 text-green-500" />
+              ) : (
+                <ScanFace className="h-3 w-3 text-yellow-500" />
+              )}
+              <span>{mediaPipeStatusMsg}</span>
             </div>
           )}
         </div>

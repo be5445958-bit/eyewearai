@@ -426,6 +426,21 @@ export const translations: Translations = {
     en: "Drag (1 finger) and pinch (2 fingers)",
     es: "Arrastra (1 dedo) y pellizca (2 dedos)",
   },
+  analyzingFace: {
+    pt: "Analisando seu rosto...",
+    en: "Analyzing your face...",
+    es: "Analizando tu rostro...",
+  },
+  faceDetected: {
+    pt: "Rosto detectado ✓",
+    en: "Face detected ✓",
+    es: "Rostro detectado ✓",
+  },
+  noFaceDetected: {
+    pt: "Não detectamos um rosto nítido. Tente outra foto de frente.",
+    en: "We couldn't detect a clear face. Try another frontal photo.",
+    es: "No detectamos un rostro claro. Prueba otra foto de frente.",
+  },
 };
 
 interface LanguageContextType {
