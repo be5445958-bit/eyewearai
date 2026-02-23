@@ -117,6 +117,11 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
       });
 
       if (error) {
+        // Edge function non-2xx errors come through here
+        const bodyError = data?.error;
+        if (bodyError) {
+          throw new Error(bodyError);
+        }
         throw new Error(error.message || t("analysisError"));
       }
 
