@@ -41,7 +41,7 @@ const OPACITY_MIN = 40;
 const OPACITY_MAX = 100;
 
 // Bump this to invalidate cached prepared PNGs after changing preprocessing logic.
-const PREPARE_CACHE_VERSION = "v7";
+const PREPARE_CACHE_VERSION = "v8";
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
@@ -599,12 +599,12 @@ const GlassesTryOn = ({
                   "drop-shadow(0 2px 6px hsl(var(--foreground) / 0.28))",
                 transition: isDragging ? "none" : "opacity 0.2s",
                 willChange: "transform",
-                // Mask to hide temple arms - fades out the left and right 35% of the image (95% transparency)
+                // Mask to hide temple arms - aggressively fades out the outer 30% on each side
                 maskImage: hideTemples
-                  ? "linear-gradient(to right, transparent 0%, transparent 5%, black 20%, black 80%, transparent 95%, transparent 100%)"
+                  ? "linear-gradient(to right, transparent 0%, black 30%, black 70%, transparent 100%)"
                   : "none",
                 WebkitMaskImage: hideTemples
-                  ? "linear-gradient(to right, transparent 0%, transparent 5%, black 20%, black 80%, transparent 95%, transparent 100%)"
+                  ? "linear-gradient(to right, transparent 0%, black 30%, black 70%, transparent 100%)"
                   : "none",
               }}
               onLoad={handleGlassesLoad}
