@@ -41,7 +41,7 @@ const OPACITY_MIN = 40;
 const OPACITY_MAX = 100;
 
 // Bump this to invalidate cached prepared PNGs after changing preprocessing logic.
-const PREPARE_CACHE_VERSION = "v11";
+const PREPARE_CACHE_VERSION = "v12";
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
@@ -93,7 +93,7 @@ const GlassesTryOn = ({
   const [rotationSlider, setRotationSlider] = useState(0);
   const [opacitySlider, setOpacitySlider] = useState(92);
   const [realisticBlend, setRealisticBlend] = useState(true);
-  const [hideTemples, setHideTemples] = useState(true);
+  // Temples are always hidden — no user toggle needed
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -600,13 +600,9 @@ const GlassesTryOn = ({
                   "drop-shadow(0 2px 6px hsl(var(--foreground) / 0.28))",
                 transition: isDragging ? "none" : "opacity 0.2s",
                 willChange: "transform",
-                // Mask to hide temple arms - aggressively fades out the outer 30% on each side
-                maskImage: hideTemples
-                  ? "linear-gradient(to right, transparent 0%, black 30%, black 70%, transparent 100%)"
-                  : "none",
-                WebkitMaskImage: hideTemples
-                  ? "linear-gradient(to right, transparent 0%, black 30%, black 70%, transparent 100%)"
-                  : "none",
+                // Always hide temple arms
+                maskImage: "linear-gradient(to right, transparent 0%, black 30%, black 70%, transparent 100%)",
+                WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 30%, black 70%, transparent 100%)",
               }}
               onLoad={handleGlassesLoad}
               onPointerDown={handlePointerDown}
@@ -692,23 +688,7 @@ const GlassesTryOn = ({
             </span>
           </div>
 
-          {/* Hide temples switch */}
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div className="space-y-0.5">
-              <Label htmlFor="temples-switch">
-                {t("hideTemples")}
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                {t("hideTemplesDesc")}
-              </p>
-            </div>
-            <Switch
-              id="temples-switch"
-              checked={hideTemples}
-              onCheckedChange={setHideTemples}
-              disabled={isLoading || bgError}
-            />
-          </div>
+          {/* Temples are always hidden — no toggle needed */}
 
           {/* Realism switch */}
           <div className="flex items-center justify-between rounded-md border p-3">
