@@ -125,15 +125,15 @@ const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps)
                 {style.description[language]}
               </p>
               <Button 
-                variant="outline" 
+                variant="cta" 
                 size="sm" 
-                className="mt-3 w-full"
+                className="mt-3 w-full animate-pulse-glow"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleTryOn(style.image);
                 }}
               >
-                <Eye className="w-3 h-3 mr-1" />
+                <Eye className="w-4 h-4 mr-1" />
                 {t("tryOn")}
               </Button>
             </div>
@@ -223,11 +223,12 @@ const RecommendationCard = ({
 
           {glassesImage && (
             <Button 
-              variant="outline" 
+              variant="cta" 
               size="sm"
+              className="animate-pulse-glow"
               onClick={() => onTryOn(glassesImage)}
             >
-              <Eye className="w-3 h-3 mr-1" />
+              <Eye className="w-4 h-4 mr-1" />
               {t("tryOn")}
             </Button>
           )}
