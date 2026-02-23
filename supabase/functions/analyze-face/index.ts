@@ -281,12 +281,20 @@ Notas sobre coordenadas:
     if (!response.ok) {
       console.error("AI gateway error:", response.status);
 
-      // Return 200 with error flag so the client fallback works reliably
-      console.warn("AI gateway returned", response.status, "- returning graceful error");
-      return new Response(
-        JSON.stringify({ success: false, error: `AI unavailable (${response.status})` }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Muitas requisições. Tente novamente em alguns segundos." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Créditos insuficientes. Por favor, adicione créditos à sua conta." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      throw new Error(`AI gateway error: ${response.status}`);
     }
 
     const data = await response.json();
