@@ -1,9 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Camera, Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { compressImage } from "@/lib/compressImage";
+import { useMediaPipeFaceDetection } from "@/hooks/useMediaPipeFaceDetection";
 
 interface PhotoUploadProps {
   onAnalysisComplete: (analysis: AnalysisResult, photo: string) => void;
@@ -31,7 +33,6 @@ export interface AnalysisResult {
   faceShape: string;
   skinTone: string;
   facialFeatures: string;
-  // Support both old format (eyePositions) and new format (facialLandmarks)
   eyePositions?: {
     leftEye: EyePosition;
     rightEye: EyePosition;
@@ -45,6 +46,28 @@ export interface AnalysisResult {
   }[];
 }
 
+/** Default recommendations when AI is unavailable */
+function getDefaultRecommendations(lang: string) {
+  const styles = [
+    { style: "Aviator", score: 85 },
+    { style: "Wayfarer", score: 80 },
+    { style: "Round", score: 75 },
+    { style: "Cat-Eye", score: 70 },
+    { style: "Rectangular", score: 65 },
+  ];
+  const reasonMap: Record<string, string> = {
+    pt: "Estilo versátil que combina com diversos formatos de rosto",
+    en: "Versatile style that suits many face shapes",
+    es: "Estilo versátil que combina con diversas formas de rostro",
+  };
+  return styles.map((s) => ({
+    style: s.style,
+    reason: reasonMap[lang] || reasonMap.pt,
+    colors: ["Black", "Gold", "Tortoise"],
+    compatibilityScore: s.score,
+  }));
+}
+
 const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -52,6 +75,7 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { t, language } = useLanguage();
+  const mediaPipe = useMediaPipeFaceDetection();
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -80,25 +104,52 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
     }
   };
 
+  /** Fallback: use MediaPipe locally to build a basic AnalysisResult */
+  const buildLocalFallback = useCallback(
+    async (photo: string): Promise<AnalysisResult | null> => {
+      setUploadProgress(t("usingLocalDetection"));
+      const detected = await mediaPipe.detect(photo);
+      if (!detected) return null;
+
+      return {
+        faceShape: "—",
+        skinTone: "—",
+        facialFeatures: t("autoAnalysisUnavailable"),
+        facialLandmarks: {
+          leftEye: detected.leftEye,
+          rightEye: detected.rightEye,
+          noseBridge: detected.noseBridge,
+          faceRotation: detected.faceRotation,
+          faceWidth: detected.faceWidth,
+        },
+        recommendations: getDefaultRecommendations(language),
+      };
+    },
+    [mediaPipe, language, t],
+  );
+
   const analyzePhoto = async () => {
     if (!selectedImage) return;
 
     setIsAnalyzing(true);
-    setUploadProgress(t("preparingImage"));
+    setUploadProgress(t("compressingImage"));
 
     try {
-      // Convert base64 to blob
-      const response = await fetch(selectedImage);
+      // 1. Compress image before uploading (max 2MB)
+      const compressed = await compressImage(selectedImage);
+
+      setUploadProgress(t("preparingImage"));
+
+      // Convert to blob
+      const response = await fetch(compressed);
       const blob = await response.blob();
-      
-      // Generate unique filename
+
       const ext = (blob.type || "image/jpeg").split("/")[1] || "jpg";
       const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
       const fileName = `face-${crypto.randomUUID()}.${safeExt}`;
 
       setUploadProgress(t("uploadingPhoto"));
 
-      // Upload to Storage
       const { error: uploadError } = await supabase.storage
         .from("face-photos")
         .upload(fileName, blob, {
@@ -111,35 +162,44 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
 
       setUploadProgress(t("analyzingWithAI"));
 
-      // Call the analysis backend function (it will create a signed URL and cleanup)
+      // 2. Call AI edge function
       const { data, error } = await supabase.functions.invoke("analyze-face", {
         body: { storagePath: fileName, language },
       });
 
-      // supabase.functions.invoke returns { data, error }
-      // On non-2xx, error.context may contain the response; data may also hold the parsed body
       if (error || data?.error) {
-        const specificMsg = data?.error;
-        if (specificMsg) {
-          throw new Error(specificMsg);
-        }
-        // Try to extract message from the error context (FunctionsHttpError)
-        if (error && typeof (error as any).context?.json === "function") {
+        // Extract specific message
+        let specificMsg = data?.error;
+        if (!specificMsg && error && typeof (error as any).context?.json === "function") {
           try {
             const errBody = await (error as any).context.json();
-            if (errBody?.error) throw new Error(errBody.error);
-          } catch (_) { /* fall through */ }
+            specificMsg = errBody?.error;
+          } catch (_) { /* ignore */ }
         }
-        throw new Error(error?.message || t("analysisError"));
+
+        console.warn("AI analysis failed, falling back to local:", specificMsg || error?.message);
+
+        // 3. FALLBACK: use local MediaPipe detection
+        const fallbackResult = await buildLocalFallback(selectedImage);
+        if (fallbackResult) {
+          onAnalysisComplete(fallbackResult, selectedImage);
+          toast({
+            title: t("localAnalysisComplete"),
+            description: t("localAnalysisDesc"),
+          });
+          return;
+        }
+
+        // If even local detection fails, show friendly message
+        throw new Error(t("autoAnalysisUnavailable"));
       }
 
       onAnalysisComplete(data.analysis, selectedImage);
-      
+
       toast({
         title: t("analysisComplete"),
         description: t("recommendationsReady"),
       });
-
     } catch (error) {
       console.error("Analysis error:", error);
       toast({
@@ -192,7 +252,7 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
           >
             <X className="w-5 h-5" />
           </button>
-          
+
           <div className="rounded-xl overflow-hidden mb-4">
             <img
               src={selectedImage}
