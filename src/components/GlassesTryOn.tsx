@@ -41,7 +41,7 @@ const OPACITY_MIN = 40;
 const OPACITY_MAX = 100;
 
 // Bump this to invalidate cached prepared PNGs after changing preprocessing logic.
-const PREPARE_CACHE_VERSION = "v15";
+const PREPARE_CACHE_VERSION = "v16";
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
