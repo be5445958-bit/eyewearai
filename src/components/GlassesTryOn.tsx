@@ -41,7 +41,7 @@ const OPACITY_MIN = 40;
 const OPACITY_MAX = 100;
 
 // Bump this to invalidate cached prepared PNGs after changing preprocessing logic.
-const PREPARE_CACHE_VERSION = "v16";
+const PREPARE_CACHE_VERSION = "v17";
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
@@ -602,8 +602,8 @@ const GlassesTryOn = ({
                 willChange: "transform",
                 // Conditionally hide temple arms
                 ...(hideTemples ? {
-                  maskImage: "linear-gradient(to right, transparent 0%, black 30%, black 70%, transparent 100%)",
-                  WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 30%, black 70%, transparent 100%)",
+                  maskImage: "linear-gradient(to right, transparent 0%, transparent 10%, black 22%, black 78%, transparent 90%, transparent 100%)",
+                  WebkitMaskImage: "linear-gradient(to right, transparent 0%, transparent 10%, black 22%, black 78%, transparent 90%, transparent 100%)",
                 } : {}),
               }}
               onLoad={handleGlassesLoad}
