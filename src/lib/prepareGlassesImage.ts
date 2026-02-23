@@ -123,10 +123,10 @@ const removeTempleArmsFallback = (
   h: number
 ): void => {
   // AGGRESSIVE APPROACH: Cut off the outer portions where temples typically are
-  const cutPercent = 0.25;
+  const cutPercent = 0.20;
   const leftCut = Math.round(w * cutPercent);
   const rightCut = Math.round(w * (1 - cutPercent));
-  const fadeWidth = Math.round(w * 0.06);
+  const fadeWidth = Math.round(w * 0.08);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -214,9 +214,9 @@ export const prepareGlassesImage = async (
   // Strategy: Remove ANY pixel that looks like background (white, light gray, or
   // checkerboard). We are very aggressive here because it's better to slightly
   // erode the edge of a frame than to leave visible checkerboard artifacts.
-  const CHECKER_MAX_DELTA = 12; // max R-G-B spread to count as "neutral / low-chroma"
-  const CHECKER_BRIGHT_MIN = 190; // brightness above which neutral pixels are removed (catches gray checkerboard ~204)
-  const DARK_FRAME_MAX = 50; // pixels darker than this are kept (frames)
+  const CHECKER_MAX_DELTA = 45; // max R-G-B spread to count as "neutral / low-chroma"
+  const CHECKER_BRIGHT_MIN = 120; // brightness above which neutral pixels are removed
+  const DARK_FRAME_MAX = 55; // very dark neutral pixels are kept (dark frames)
 
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
@@ -231,41 +231,45 @@ export const prepareGlassesImage = async (
     const delta = maxRGB - minRGB;
 
     // Near-white product background — fully remove
-    if (minRGB >= whiteThreshold) {
+    if (minRGB >= whiteThreshold - softness) {
       data[i + 3] = 0;
     }
-    // Neutral (low-chroma) pixels brighter than checkerboard gray — remove
-    else if (brightness >= CHECKER_BRIGHT_MIN && delta <= CHECKER_MAX_DELTA && brightness > DARK_FRAME_MAX) {
+    // Bright neutral / low-chroma pixels (checkerboard, light gray bg)
+    else if (brightness >= CHECKER_BRIGHT_MIN && delta <= CHECKER_MAX_DELTA) {
+      data[i + 3] = 0;
+    }
+    // Medium-brightness neutral pixels (darker checkerboard squares)
+    else if (brightness > DARK_FRAME_MAX && brightness < CHECKER_BRIGHT_MIN && delta <= 25) {
       data[i + 3] = 0;
     }
   }
 
-  // 1b) Spatial checkerboard detector — run multiple passes to catch all alternating pixels.
+  // 1b) Spatial checkerboard detector — catch any remaining alternating-pixel patterns.
+  // Scan for pixels whose immediate neighbours (left/right or up/down) are transparent
+  // while they are not — a hallmark of baked-in checkerboard.
   const w2 = canvas.width;
   const h2 = canvas.height;
-  for (let pass = 0; pass < 3; pass++) {
-    const toRemove: number[] = [];
-    for (let y = 1; y < h2 - 1; y++) {
-      for (let x = 1; x < w2 - 1; x++) {
-        const idx = (y * w2 + x) * 4;
-        if (data[idx + 3] === 0) continue;
-        const br = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-        if (br < DARK_FRAME_MAX) continue; // keep dark frame pixels
+  const toRemove: number[] = [];
+  for (let y = 1; y < h2 - 1; y++) {
+    for (let x = 1; x < w2 - 1; x++) {
+      const idx = (y * w2 + x) * 4;
+      if (data[idx + 3] === 0) continue;
+      const br = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+      if (br < DARK_FRAME_MAX) continue; // keep dark frame pixels
 
-        const left = data[((y) * w2 + (x - 1)) * 4 + 3];
-        const right = data[((y) * w2 + (x + 1)) * 4 + 3];
-        const up = data[((y - 1) * w2 + x) * 4 + 3];
-        const down = data[((y + 1) * w2 + x) * 4 + 3];
-        const transparentNeighbours = (left === 0 ? 1 : 0) + (right === 0 ? 1 : 0) + (up === 0 ? 1 : 0) + (down === 0 ? 1 : 0);
-        if (transparentNeighbours >= 2) {
-          toRemove.push(idx);
-        }
+      // Check if surrounded by transparent neighbours (checkerboard signature)
+      const left = data[((y) * w2 + (x - 1)) * 4 + 3];
+      const right = data[((y) * w2 + (x + 1)) * 4 + 3];
+      const up = data[((y - 1) * w2 + x) * 4 + 3];
+      const down = data[((y + 1) * w2 + x) * 4 + 3];
+      const transparentNeighbours = (left === 0 ? 1 : 0) + (right === 0 ? 1 : 0) + (up === 0 ? 1 : 0) + (down === 0 ? 1 : 0);
+      if (transparentNeighbours >= 2) {
+        toRemove.push(idx);
       }
     }
-    if (toRemove.length === 0) break; // nothing more to remove
-    for (const idx of toRemove) {
-      data[idx + 3] = 0;
-    }
+  }
+  for (const idx of toRemove) {
+    data[idx + 3] = 0;
   }
 
   // 2) Remove temple arms (optional)

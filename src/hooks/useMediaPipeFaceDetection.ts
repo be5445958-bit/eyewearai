@@ -11,8 +11,6 @@ export interface MediaPipeFaceLandmarks {
   noseBridge: { x: number; y: number };
   faceRotation: number;
   faceWidth: number;
-  /** All 468 raw landmarks (normalized 0-1) */
-  allLandmarks: { x: number; y: number }[];
 }
 
 type Status = "idle" | "loading" | "detected" | "no-face" | "error";
@@ -122,7 +120,6 @@ export function useMediaPipeFaceDetection() {
         noseBridge: { x: noseBridge.x, y: noseBridge.y },
         faceRotation,
         faceWidth,
-        allLandmarks: face.map((p: any) => ({ x: p.x, y: p.y })),
       };
 
       if (callId !== abortRef.current) return;

@@ -6,7 +6,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { compressImage } from "@/lib/compressImage";
 import { useMediaPipeFaceDetection } from "@/hooks/useMediaPipeFaceDetection";
-import { runLocalFaceAnalysis } from "@/lib/localFaceAnalysis";
 
 interface PhotoUploadProps {
   onAnalysisComplete: (analysis: AnalysisResult, photo: string) => void;
@@ -47,7 +46,27 @@ export interface AnalysisResult {
   }[];
 }
 
-/** No longer needed — replaced by localFaceAnalysis.ts */
+/** Default recommendations when AI is unavailable */
+function getDefaultRecommendations(lang: string) {
+  const styles = [
+    { style: "Aviator", score: 85 },
+    { style: "Wayfarer", score: 80 },
+    { style: "Round", score: 75 },
+    { style: "Cat-Eye", score: 70 },
+    { style: "Rectangular", score: 65 },
+  ];
+  const reasonMap: Record<string, string> = {
+    pt: "Estilo versátil que combina com diversos formatos de rosto",
+    en: "Versatile style that suits many face shapes",
+    es: "Estilo versátil que combina con diversas formas de rostro",
+  };
+  return styles.map((s) => ({
+    style: s.style,
+    reason: reasonMap[lang] || reasonMap.pt,
+    colors: ["Black", "Gold", "Tortoise"],
+    compatibilityScore: s.score,
+  }));
+}
 
 const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -85,30 +104,26 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
     }
   };
 
-  /** Fallback: use MediaPipe locally to build a COMPLETE AnalysisResult */
+  /** Fallback: use MediaPipe locally to build a basic AnalysisResult */
   const buildLocalFallback = useCallback(
     async (photo: string): Promise<AnalysisResult | null> => {
       setUploadProgress(t("usingLocalDetection"));
       const detected = await mediaPipe.detect(photo);
       if (!detected) return null;
 
-      setUploadProgress(t("analyzingFeatures") || "Analisando características...");
-
-      const lang = (language === "en" || language === "es" || language === "pt") ? language : "pt";
-      const result = await runLocalFaceAnalysis(
-        photo,
-        detected.allLandmarks,
-        {
+      return {
+        faceShape: "—",
+        skinTone: "—",
+        facialFeatures: t("autoAnalysisUnavailable"),
+        facialLandmarks: {
           leftEye: detected.leftEye,
           rightEye: detected.rightEye,
           noseBridge: detected.noseBridge,
           faceRotation: detected.faceRotation,
           faceWidth: detected.faceWidth,
         },
-        lang,
-      );
-
-      return result;
+        recommendations: getDefaultRecommendations(language),
+      };
     },
     [mediaPipe, language, t],
   );
