@@ -123,10 +123,10 @@ const removeTempleArmsFallback = (
   h: number
 ): void => {
   // AGGRESSIVE APPROACH: Cut off the outer portions where temples typically are
-  const cutPercent = 0.20;
+  const cutPercent = 0.25;
   const leftCut = Math.round(w * cutPercent);
   const rightCut = Math.round(w * (1 - cutPercent));
-  const fadeWidth = Math.round(w * 0.08);
+  const fadeWidth = Math.round(w * 0.06);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
