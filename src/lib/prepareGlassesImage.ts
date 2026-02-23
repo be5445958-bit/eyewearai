@@ -168,7 +168,7 @@ export const prepareGlassesImage = async (
   if (cachedPrepared) return cachedPrepared;
 
   const {
-    useAI = true,
+    useAI = false,
     removeTemples = true,
     whiteThreshold = 245,
     softness = 25,
