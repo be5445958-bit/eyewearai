@@ -127,14 +127,14 @@ const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps)
               <Button 
                 variant="cta" 
                 size="sm" 
-                className="mt-3 w-full animate-pulse-glow"
+                className="mt-3 w-full animate-pulse-glow flex items-center justify-center gap-1"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleTryOn(style.image);
                 }}
               >
-                <Eye className="w-4 h-4 mr-1 shrink-0" />
-                {t("tryOn")}
+                <Eye className="w-4 h-4 shrink-0" />
+                <span>{t("tryOn")}</span>
               </Button>
             </div>
           ))}
