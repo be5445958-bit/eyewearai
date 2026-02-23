@@ -457,14 +457,19 @@ export const translations: Translations = {
     es: "Comprimiendo imagen...",
   },
   localAnalysisComplete: {
-    pt: "Análise local concluída!",
-    en: "Local analysis complete!",
-    es: "¡Análisis local completado!",
+    pt: "Análise concluída!",
+    en: "Analysis complete!",
+    es: "¡Análisis completado!",
   },
   localAnalysisDesc: {
-    pt: "Usamos detecção local. Você pode experimentar óculos do catálogo.",
-    en: "We used local detection. You can try on glasses from the catalog.",
-    es: "Usamos detección local. Puedes probar gafas del catálogo.",
+    pt: "Formato do rosto e tom de pele detectados. Recomendações personalizadas prontas!",
+    en: "Face shape and skin tone detected. Personalized recommendations ready!",
+    es: "Forma del rostro y tono de piel detectados. ¡Recomendaciones personalizadas listas!",
+  },
+  analyzingFeatures: {
+    pt: "Analisando características faciais...",
+    en: "Analyzing facial features...",
+    es: "Analizando características faciales...",
   },
 };
 
