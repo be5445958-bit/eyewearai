@@ -214,9 +214,9 @@ export const prepareGlassesImage = async (
   // Strategy: Remove ANY pixel that looks like background (white, light gray, or
   // checkerboard). We are very aggressive here because it's better to slightly
   // erode the edge of a frame than to leave visible checkerboard artifacts.
-  const CHECKER_MAX_DELTA = 8; // max R-G-B spread to count as "neutral / low-chroma" (very tight to preserve frames)
-  const CHECKER_BRIGHT_MIN = 240; // brightness above which neutral pixels are removed (only near-white pixels)
-  const DARK_FRAME_MAX = 30; // very dark neutral pixels are kept (dark frames)
+  const CHECKER_MAX_DELTA = 12; // max R-G-B spread to count as "neutral / low-chroma"
+  const CHECKER_BRIGHT_MIN = 190; // brightness above which neutral pixels are removed (catches gray checkerboard ~204)
+  const DARK_FRAME_MAX = 50; // pixels darker than this are kept (frames)
 
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
@@ -230,42 +230,42 @@ export const prepareGlassesImage = async (
     const brightness = (r + g + b) / 3;
     const delta = maxRGB - minRGB;
 
-    // Near-white product background — fully remove (only very white pixels)
+    // Near-white product background — fully remove
     if (minRGB >= whiteThreshold) {
       data[i + 3] = 0;
     }
-    // Bright near-white neutral pixels (checkerboard, white bg)
-    else if (brightness >= CHECKER_BRIGHT_MIN && delta <= CHECKER_MAX_DELTA) {
+    // Neutral (low-chroma) pixels brighter than checkerboard gray — remove
+    else if (brightness >= CHECKER_BRIGHT_MIN && delta <= CHECKER_MAX_DELTA && brightness > DARK_FRAME_MAX) {
       data[i + 3] = 0;
     }
   }
 
-  // 1b) Spatial checkerboard detector — catch any remaining alternating-pixel patterns.
-  // Scan for pixels whose immediate neighbours (left/right or up/down) are transparent
-  // while they are not — a hallmark of baked-in checkerboard.
+  // 1b) Spatial checkerboard detector — run multiple passes to catch all alternating pixels.
   const w2 = canvas.width;
   const h2 = canvas.height;
-  const toRemove: number[] = [];
-  for (let y = 1; y < h2 - 1; y++) {
-    for (let x = 1; x < w2 - 1; x++) {
-      const idx = (y * w2 + x) * 4;
-      if (data[idx + 3] === 0) continue;
-      const br = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-      if (br < DARK_FRAME_MAX) continue; // keep dark frame pixels
+  for (let pass = 0; pass < 3; pass++) {
+    const toRemove: number[] = [];
+    for (let y = 1; y < h2 - 1; y++) {
+      for (let x = 1; x < w2 - 1; x++) {
+        const idx = (y * w2 + x) * 4;
+        if (data[idx + 3] === 0) continue;
+        const br = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+        if (br < DARK_FRAME_MAX) continue; // keep dark frame pixels
 
-      // Check if surrounded by transparent neighbours (checkerboard signature)
-      const left = data[((y) * w2 + (x - 1)) * 4 + 3];
-      const right = data[((y) * w2 + (x + 1)) * 4 + 3];
-      const up = data[((y - 1) * w2 + x) * 4 + 3];
-      const down = data[((y + 1) * w2 + x) * 4 + 3];
-      const transparentNeighbours = (left === 0 ? 1 : 0) + (right === 0 ? 1 : 0) + (up === 0 ? 1 : 0) + (down === 0 ? 1 : 0);
-      if (transparentNeighbours >= 3) {
-        toRemove.push(idx);
+        const left = data[((y) * w2 + (x - 1)) * 4 + 3];
+        const right = data[((y) * w2 + (x + 1)) * 4 + 3];
+        const up = data[((y - 1) * w2 + x) * 4 + 3];
+        const down = data[((y + 1) * w2 + x) * 4 + 3];
+        const transparentNeighbours = (left === 0 ? 1 : 0) + (right === 0 ? 1 : 0) + (up === 0 ? 1 : 0) + (down === 0 ? 1 : 0);
+        if (transparentNeighbours >= 2) {
+          toRemove.push(idx);
+        }
       }
     }
-  }
-  for (const idx of toRemove) {
-    data[idx + 3] = 0;
+    if (toRemove.length === 0) break; // nothing more to remove
+    for (const idx of toRemove) {
+      data[idx + 3] = 0;
+    }
   }
 
   // 2) Remove temple arms (optional)
