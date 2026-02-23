@@ -41,7 +41,7 @@ const OPACITY_MIN = 40;
 const OPACITY_MAX = 100;
 
 // Bump this to invalidate cached prepared PNGs after changing preprocessing logic.
-const PREPARE_CACHE_VERSION = "v9";
+const PREPARE_CACHE_VERSION = "v10";
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
@@ -92,7 +92,7 @@ const GlassesTryOn = ({
   const [scaleSlider, setScaleSlider] = useState(100);
   const [rotationSlider, setRotationSlider] = useState(0);
   const [opacitySlider, setOpacitySlider] = useState(92);
-  const [realisticBlend, setRealisticBlend] = useState(false);
+  const [realisticBlend, setRealisticBlend] = useState(true);
   const [hideTemples, setHideTemples] = useState(true);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -160,7 +160,7 @@ const GlassesTryOn = ({
     setScaleSlider(100);
     setRotationSlider(0);
     setOpacitySlider(92);
-    setRealisticBlend(false);
+    setRealisticBlend(true);
     setPreparedGlassesSrc(null);
     setIsPreparingGlasses(false);
     setIsDragging(false);
