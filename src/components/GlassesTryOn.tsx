@@ -41,7 +41,7 @@ const OPACITY_MIN = 40;
 const OPACITY_MAX = 100;
 
 // Bump this to invalidate cached prepared PNGs after changing preprocessing logic.
-const PREPARE_CACHE_VERSION = "v10";
+const PREPARE_CACHE_VERSION = "v11";
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
@@ -550,7 +550,8 @@ const GlassesTryOn = ({
     [glassesPos]
   );
 
-  const isLoading = !bgLoaded || !glassesLoaded || isPreparingGlasses;
+  // Only block on bg/glasses DOM load — AI pre-processing happens silently in background
+  const isLoading = !bgLoaded || !glassesLoaded;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
