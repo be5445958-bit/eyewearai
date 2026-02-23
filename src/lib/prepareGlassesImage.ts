@@ -208,11 +208,12 @@ export const prepareGlassesImage = async (
   const data = imageData.data;
 
   // 1) Background removal — remove near-white pixels AND checkerboard artifacts.
-  // Checkerboard = alternating ~204 / ~255 gray squares rendered when AI returns
-  // "transparent" as visible pixels. We aggressively remove ALL bright neutral
-  // pixels (brightness >= 150, low chroma) while preserving coloured / dark frames.
-  const CHECKER_MIN = 150;   // any neutral pixel brighter than this is suspect
-  const CHECKER_MAX_DELTA = 25; // max R-G-B spread to count as "neutral gray"
+  // Checkerboard pattern has two tile colors: light (~204,204,204) and dark (~153,153,153).
+  // Both are perfectly neutral gray (R≈G≈B). We remove ALL neutral gray pixels
+  // regardless of brightness, while preserving colored/dark frame pixels.
+  const CHECKER_MAX_DELTA = 18; // max R-G-B spread to count as "neutral gray"
+  const CHECKER_DARK_MIN = 60;  // ignore very dark pixels (could be part of dark frames)
+  const CHECKER_BRIGHT_MAX = whiteThreshold; // above this handled by white-bg removal
 
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
@@ -226,16 +227,20 @@ export const prepareGlassesImage = async (
     const brightness = (r + g + b) / 3;
     const delta = maxRGB - minRGB;
 
-    // Near-white product background (very bright)
+    // Near-white product background (very bright, almost no color)
     if (minRGB >= whiteThreshold) {
       const t = clamp((minRGB - whiteThreshold) / Math.max(1, softness), 0, 1);
       data[i + 3] = Math.round(a * (1 - t));
     }
-    // Checkerboard / light-gray neutral pixels — fade out progressively
-    else if (brightness >= CHECKER_MIN && delta <= CHECKER_MAX_DELTA) {
-      // Stronger fade the brighter the pixel is
-      const t = clamp((brightness - CHECKER_MIN) / 105, 0, 1);
-      data[i + 3] = Math.round(a * (1 - t));
+    // Checkerboard / neutral gray pixels — ANY brightness between dark and white threshold
+    // The checkerboard alternates ~80 and ~204 gray, both have near-zero chroma (delta ≈ 0)
+    else if (
+      brightness > CHECKER_DARK_MIN &&
+      brightness < CHECKER_BRIGHT_MAX &&
+      delta <= CHECKER_MAX_DELTA
+    ) {
+      // Fully remove neutral gray pixels (they are always background, never frame color)
+      data[i + 3] = 0;
     }
   }
 
