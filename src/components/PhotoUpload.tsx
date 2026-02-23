@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { localFaceAnalysis } from "@/lib/localFaceAnalysis";
 
 interface PhotoUploadProps {
   onAnalysisComplete: (analysis: AnalysisResult, photo: string) => void;
@@ -115,6 +116,25 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
       const { data, error } = await supabase.functions.invoke("analyze-face", {
         body: { storagePath: fileName, language },
       });
+
+      // If 402 (insufficient credits), fall back to local analysis
+      const is402 = error?.message?.includes("402") || data?.error?.includes("insuficientes") || data?.error?.includes("Insufficient");
+      
+      if (is402) {
+        console.warn("AI credits exhausted, falling back to local analysis");
+        setUploadProgress(t("analyzingWithAI"));
+        const localResult = await localFaceAnalysis(selectedImage, language as "pt" | "en" | "es");
+        onAnalysisComplete(localResult, selectedImage);
+        toast({
+          title: t("analysisComplete"),
+          description: language === "en" 
+            ? "Analysis performed locally (AI credits unavailable)" 
+            : language === "es"
+              ? "Análisis realizado localmente (créditos de IA no disponibles)"
+              : "Análise realizada localmente (créditos de IA indisponíveis)",
+        });
+        return;
+      }
 
       if (error) {
         throw new Error(error.message || t("analysisError"));
