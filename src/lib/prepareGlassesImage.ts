@@ -214,9 +214,9 @@ export const prepareGlassesImage = async (
   // Strategy: Remove ANY pixel that looks like background (white, light gray, or
   // checkerboard). We are very aggressive here because it's better to slightly
   // erode the edge of a frame than to leave visible checkerboard artifacts.
-  const CHECKER_MAX_DELTA = 20; // max R-G-B spread to count as "neutral / low-chroma" (tighter to avoid removing colored lenses)
-  const CHECKER_BRIGHT_MIN = 200; // brightness above which neutral pixels are removed (raised to preserve more of the frame)
-  const DARK_FRAME_MAX = 55; // very dark neutral pixels are kept (dark frames)
+  const CHECKER_MAX_DELTA = 15; // max R-G-B spread to count as "neutral / low-chroma" (very tight to preserve frames)
+  const CHECKER_BRIGHT_MIN = 220; // brightness above which neutral pixels are removed (only very bright pixels)
+  const DARK_FRAME_MAX = 40; // very dark neutral pixels are kept (dark frames)
 
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
@@ -238,8 +238,8 @@ export const prepareGlassesImage = async (
     else if (brightness >= CHECKER_BRIGHT_MIN && delta <= CHECKER_MAX_DELTA) {
       data[i + 3] = 0;
     }
-    // Medium-brightness neutral pixels (only very neutral ones — avoid removing frame parts)
-    else if (brightness > DARK_FRAME_MAX && brightness < CHECKER_BRIGHT_MIN && delta <= 10) {
+    // Medium-brightness neutral pixels — only remove extremely neutral ones (delta <= 5)
+    else if (brightness > DARK_FRAME_MAX && brightness < CHECKER_BRIGHT_MIN && delta <= 5) {
       data[i + 3] = 0;
     }
   }
