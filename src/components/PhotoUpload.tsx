@@ -116,17 +116,21 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
         body: { storagePath: fileName, language },
       });
 
-      if (error) {
-        // Edge function non-2xx errors come through here
-        const bodyError = data?.error;
-        if (bodyError) {
-          throw new Error(bodyError);
+      // supabase.functions.invoke returns { data, error }
+      // On non-2xx, error.context may contain the response; data may also hold the parsed body
+      if (error || data?.error) {
+        const specificMsg = data?.error;
+        if (specificMsg) {
+          throw new Error(specificMsg);
         }
-        throw new Error(error.message || t("analysisError"));
-      }
-
-      if (data?.error) {
-        throw new Error(data.error);
+        // Try to extract message from the error context (FunctionsHttpError)
+        if (error && typeof (error as any).context?.json === "function") {
+          try {
+            const errBody = await (error as any).context.json();
+            if (errBody?.error) throw new Error(errBody.error);
+          } catch (_) { /* fall through */ }
+        }
+        throw new Error(error?.message || t("analysisError"));
       }
 
       onAnalysisComplete(data.analysis, selectedImage);
