@@ -96,14 +96,14 @@ export function useMediaPipeFaceDetection() {
       const leftFaceEdge = face[234];
       const rightFaceEdge = face[454];
 
-      // Use center of iris landmarks for eye positions
+      // Use iris center landmarks directly — most accurate for pupil position
       const leftEye = {
-        x: (leftEyeCenter.x + leftEyeOuter.x) / 2,
-        y: (leftEyeCenter.y + leftEyeOuter.y) / 2,
+        x: leftEyeCenter.x,
+        y: leftEyeCenter.y,
       };
       const rightEye = {
-        x: (rightEyeCenter.x + rightEyeOuter.x) / 2,
-        y: (rightEyeCenter.y + rightEyeOuter.y) / 2,
+        x: rightEyeCenter.x,
+        y: rightEyeCenter.y,
       };
 
       // Face rotation from eye angle

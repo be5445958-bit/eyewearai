@@ -299,24 +299,18 @@ const GlassesTryOn = ({
       let x = eyeCenter.x;
       if (noseBridge) x = x * 0.8 + noseBridge.x * 0.2;
 
-      // Y: Glasses sit slightly below eye center (resting on the nose bridge).
-      // The offset is small so lenses align with the pupils.
+      // Y: Glasses sit on eye center — lenses must align with pupils.
       let y = eyeCenter.y;
       
-      // Small downward nudge — glasses rest on nose, not floating at eye center
-      const noseRestOffset = eyeDistance * 0.08;
+      // Downward nudge so the frame center aligns with the iris center
+      // (glasses frames are typically centered on the pupil, not floating above)
+      const noseRestOffset = eyeDistance * 0.12;
       y = y + noseRestOffset;
 
-      // Fine-tune with nose bridge if available (blend gently)
+      // Fine-tune with nose bridge if available (pull slightly toward nose)
       if (noseBridge) {
-        const noseAdjustment = (noseBridge.y - eyeCenter.y) * 0.15;
+        const noseAdjustment = (noseBridge.y - eyeCenter.y) * 0.10;
         y = y + noseAdjustment;
-      }
-
-      // Safety: don't go above eyebrows
-      if (lBrow && rBrow) {
-        const browAvgY = (lBrow.y + rBrow.y) / 2;
-        y = Math.max(y, browAvgY + eyeDistance * 0.05);
       }
 
       y = clamp(y, containerHeight * 0.15, containerHeight * 0.85);
