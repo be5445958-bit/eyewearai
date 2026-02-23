@@ -207,13 +207,11 @@ export const prepareGlassesImage = async (
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
-  // 1) Background removal — remove near-white pixels AND checkerboard artifacts.
-  // Checkerboard pattern has two tile colors: light (~204,204,204) and dark (~153,153,153).
-  // Both are perfectly neutral gray (R≈G≈B). We remove ALL neutral gray pixels
-  // regardless of brightness, while preserving colored/dark frame pixels.
-  const CHECKER_MAX_DELTA = 18; // max R-G-B spread to count as "neutral gray"
-  const CHECKER_DARK_MIN = 60;  // ignore very dark pixels (could be part of dark frames)
-  const CHECKER_BRIGHT_MAX = whiteThreshold; // above this handled by white-bg removal
+  // 1) Background removal — remove near-white, near-gray, and checkerboard pixels.
+  // IMPORTANT: pixels must be fully transparent (alpha=0), not semi-transparent,
+  // because multiply blend mode will show any semi-transparent gray as a dark shadow.
+  const CHECKER_MAX_DELTA = 22; // max R-G-B spread to count as "neutral gray"
+  const CHECKER_DARK_MIN = 40;  // ignore very dark pixels (part of dark frames)
 
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
@@ -227,19 +225,16 @@ export const prepareGlassesImage = async (
     const brightness = (r + g + b) / 3;
     const delta = maxRGB - minRGB;
 
-    // Near-white product background (very bright, almost no color)
-    if (minRGB >= whiteThreshold) {
-      const t = clamp((minRGB - whiteThreshold) / Math.max(1, softness), 0, 1);
-      data[i + 3] = Math.round(a * (1 - t));
+    // Near-white product background — fully remove (no soft fade, to avoid semi-transparent grey)
+    if (minRGB >= whiteThreshold - softness) {
+      data[i + 3] = 0;
     }
-    // Checkerboard / neutral gray pixels — ANY brightness between dark and white threshold
-    // The checkerboard alternates ~80 and ~204 gray, both have near-zero chroma (delta ≈ 0)
+    // Checkerboard / neutral gray pixels — any brightness above dark threshold with low chroma
     else if (
       brightness > CHECKER_DARK_MIN &&
-      brightness < CHECKER_BRIGHT_MAX &&
       delta <= CHECKER_MAX_DELTA
     ) {
-      // Fully remove neutral gray pixels (they are always background, never frame color)
+      // Fully remove neutral gray/white background pixels
       data[i + 3] = 0;
     }
   }
