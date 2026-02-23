@@ -6,12 +6,6 @@ import rectangularImg from "@/assets/glasses/rectangular.png";
 import clubmasterImg from "@/assets/glasses/clubmaster.png";
 import ovalImg from "@/assets/glasses/oval.png";
 import geometricImg from "@/assets/glasses/geometric.png";
-import browlineImg from "@/assets/glasses/browline.png";
-import sportImg from "@/assets/glasses/sport.png";
-import oversizedImg from "@/assets/glasses/oversized.png";
-import squareImg from "@/assets/glasses/square.png";
-import butterflyImg from "@/assets/glasses/butterfly.png";
-import shieldImg from "@/assets/glasses/shield.png";
 
 export type Language = "pt" | "en" | "es";
 
@@ -145,96 +139,6 @@ export const glassesCatalog: GlassesStyle[] = [
       pt: ["Oval", "Oblongo", "Redondo"],
       en: ["Oval", "Oblong", "Round"],
       es: ["Ovalado", "Oblongo", "Redondo"],
-    },
-  },
-  {
-    id: "browline",
-    name: { pt: "Browline", en: "Browline", es: "Browline" },
-    image: browlineImg,
-    description: {
-      pt: "Armação clássica com parte superior grossa em acetato e inferior em metal fino.",
-      en: "Classic frame with thick upper acetate rim and thin lower metal wire.",
-      es: "Montura clásica con parte superior gruesa en acetato e inferior en metal fino.",
-    },
-    bestFor: {
-      pt: ["Oval", "Coração", "Diamante"],
-      en: ["Oval", "Heart", "Diamond"],
-      es: ["Ovalado", "Corazón", "Diamante"],
-    },
-  },
-  {
-    id: "sport",
-    name: { pt: "Esportivo", en: "Sport", es: "Deportivo" },
-    image: sportImg,
-    description: {
-      pt: "Óculos de sol envolventes com proteção lateral, ideais para atividades ao ar livre.",
-      en: "Wraparound sunglasses with side protection, perfect for outdoor activities.",
-      es: "Gafas de sol envolventes con protección lateral, ideales para actividades al aire libre.",
-    },
-    bestFor: {
-      pt: ["Oval", "Quadrado", "Retangular"],
-      en: ["Oval", "Square", "Rectangular"],
-      es: ["Ovalado", "Cuadrado", "Rectangular"],
-    },
-  },
-  {
-    id: "oversized",
-    name: { pt: "Oversized", en: "Oversized", es: "Oversized" },
-    image: oversizedImg,
-    description: {
-      pt: "Óculos de sol grandes e glamourosos com lentes degradê e armação dourada.",
-      en: "Large glamorous sunglasses with gradient lenses and gold frame.",
-      es: "Gafas de sol grandes y glamurosas con lentes degradadas y montura dorada.",
-    },
-    bestFor: {
-      pt: ["Quadrado", "Diamante", "Coração"],
-      en: ["Square", "Diamond", "Heart"],
-      es: ["Cuadrado", "Diamante", "Corazón"],
-    },
-  },
-  {
-    id: "quadrado",
-    name: { pt: "Quadrado", en: "Square", es: "Cuadrado" },
-    image: squareImg,
-    description: {
-      pt: "Armação de grau quadrada e moderna em acetato, estilo hipster contemporâneo.",
-      en: "Modern square acetate prescription frame with a contemporary hipster style.",
-      es: "Montura cuadrada moderna en acetato, estilo hipster contemporáneo.",
-    },
-    bestFor: {
-      pt: ["Redondo", "Oval", "Oblongo"],
-      en: ["Round", "Oval", "Oblong"],
-      es: ["Redondo", "Ovalado", "Oblongo"],
-    },
-  },
-  {
-    id: "butterfly",
-    name: { pt: "Borboleta", en: "Butterfly", es: "Mariposa" },
-    image: butterflyImg,
-    description: {
-      pt: "Óculos de sol elegantes com formato borboleta e armação tartaruga.",
-      en: "Elegant butterfly-shaped sunglasses with tortoiseshell frame.",
-      es: "Gafas de sol elegantes con forma de mariposa y montura carey.",
-    },
-    bestFor: {
-      pt: ["Quadrado", "Retangular", "Oval"],
-      en: ["Square", "Rectangular", "Oval"],
-      es: ["Cuadrado", "Rectangular", "Ovalado"],
-    },
-  },
-  {
-    id: "shield",
-    name: { pt: "Shield", en: "Shield", es: "Shield" },
-    image: shieldImg,
-    description: {
-      pt: "Visor futurista com lente única espelhada, estilo esportivo e ousado.",
-      en: "Futuristic visor with a single mirrored lens, bold sporty style.",
-      es: "Visor futurista con lente única espejada, estilo deportivo y atrevido.",
-    },
-    bestFor: {
-      pt: ["Oval", "Oblongo", "Coração"],
-      en: ["Oval", "Oblong", "Heart"],
-      es: ["Ovalado", "Oblongo", "Corazón"],
     },
   },
 ];
