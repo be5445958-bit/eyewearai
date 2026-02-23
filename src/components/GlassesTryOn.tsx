@@ -41,7 +41,7 @@ const OPACITY_MIN = 40;
 const OPACITY_MAX = 100;
 
 // Bump this to invalidate cached prepared PNGs after changing preprocessing logic.
-const PREPARE_CACHE_VERSION = "v13";
+const PREPARE_CACHE_VERSION = "v14";
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
@@ -594,7 +594,7 @@ const GlassesTryOn = ({
                 transformOrigin: "center center",
                 touchAction: "none",
                 cursor: isDragging ? "grabbing" : "grab",
-                mixBlendMode: realisticBlend ? "multiply" : "normal",
+                mixBlendMode: realisticBlend ? "darken" : "normal",
                 opacity: glassesLoaded ? computedOpacity : 0,
                 filter:
                   "drop-shadow(0 2px 6px hsl(var(--foreground) / 0.28))",
