@@ -97,8 +97,8 @@ const processWithAI = async (imageUrl: string): Promise<string | null> => {
       body: { imageUrl: urlToSend },
     });
 
-    if (error) {
-      console.error("AI processing error:", error);
+    if (error || data?.error) {
+      console.warn("AI glasses processing unavailable (credits/timeout), using local fallback");
       return null;
     }
 
