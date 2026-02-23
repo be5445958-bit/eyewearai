@@ -41,7 +41,7 @@ const OPACITY_MIN = 40;
 const OPACITY_MAX = 100;
 
 // Bump this to invalidate cached prepared PNGs after changing preprocessing logic.
-const PREPARE_CACHE_VERSION = "v12";
+const PREPARE_CACHE_VERSION = "v5";
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
@@ -93,7 +93,7 @@ const GlassesTryOn = ({
   const [rotationSlider, setRotationSlider] = useState(0);
   const [opacitySlider, setOpacitySlider] = useState(92);
   const [realisticBlend, setRealisticBlend] = useState(true);
-  // Temples are always hidden — no user toggle needed
+  const [hideTemples, setHideTemples] = useState(true);
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -299,18 +299,24 @@ const GlassesTryOn = ({
       let x = eyeCenter.x;
       if (noseBridge) x = x * 0.8 + noseBridge.x * 0.2;
 
-      // Y: Glasses sit on eye center — lenses must align with pupils.
+      // Y: Glasses sit slightly below eye center (resting on the nose bridge).
+      // The offset is small so lenses align with the pupils.
       let y = eyeCenter.y;
       
-      // Downward nudge so the frame center aligns with the iris center
-      // (glasses frames are typically centered on the pupil, not floating above)
-      const noseRestOffset = eyeDistance * 0.12;
+      // Small downward nudge — glasses rest on nose, not floating at eye center
+      const noseRestOffset = eyeDistance * 0.08;
       y = y + noseRestOffset;
 
-      // Fine-tune with nose bridge if available (pull slightly toward nose)
+      // Fine-tune with nose bridge if available (blend gently)
       if (noseBridge) {
-        const noseAdjustment = (noseBridge.y - eyeCenter.y) * 0.10;
+        const noseAdjustment = (noseBridge.y - eyeCenter.y) * 0.15;
         y = y + noseAdjustment;
+      }
+
+      // Safety: don't go above eyebrows
+      if (lBrow && rBrow) {
+        const browAvgY = (lBrow.y + rBrow.y) / 2;
+        y = Math.max(y, browAvgY + eyeDistance * 0.05);
       }
 
       y = clamp(y, containerHeight * 0.15, containerHeight * 0.85);
@@ -550,8 +556,7 @@ const GlassesTryOn = ({
     [glassesPos]
   );
 
-  // Only block on bg/glasses DOM load — AI pre-processing happens silently in background
-  const isLoading = !bgLoaded || !glassesLoaded;
+  const isLoading = !bgLoaded || !glassesLoaded || isPreparingGlasses;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -600,9 +605,13 @@ const GlassesTryOn = ({
                   "drop-shadow(0 2px 6px hsl(var(--foreground) / 0.28))",
                 transition: isDragging ? "none" : "opacity 0.2s",
                 willChange: "transform",
-                // Always hide temple arms
-                maskImage: "linear-gradient(to right, transparent 0%, black 30%, black 70%, transparent 100%)",
-                WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 30%, black 70%, transparent 100%)",
+                // Mask to hide temple arms - fades out the left and right 35% of the image (95% transparency)
+                maskImage: hideTemples
+                  ? "linear-gradient(to right, transparent 0%, transparent 5%, black 20%, black 80%, transparent 95%, transparent 100%)"
+                  : "none",
+                WebkitMaskImage: hideTemples
+                  ? "linear-gradient(to right, transparent 0%, transparent 5%, black 20%, black 80%, transparent 95%, transparent 100%)"
+                  : "none",
               }}
               onLoad={handleGlassesLoad}
               onPointerDown={handlePointerDown}
@@ -631,9 +640,9 @@ const GlassesTryOn = ({
               {mediaPipe.status === "loading" ? (
                 <Loader2 className="h-3 w-3 animate-spin text-primary" />
               ) : mediaPipe.status === "detected" ? (
-                <ScanFace className="h-3 w-3 text-primary" />
+                <ScanFace className="h-3 w-3 text-green-500" />
               ) : (
-                <ScanFace className="h-3 w-3 text-accent" />
+                <ScanFace className="h-3 w-3 text-yellow-500" />
               )}
               <span>{mediaPipeStatusMsg}</span>
             </div>
@@ -688,7 +697,23 @@ const GlassesTryOn = ({
             </span>
           </div>
 
-          {/* Temples are always hidden — no toggle needed */}
+          {/* Hide temples switch */}
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="temples-switch">
+                {t("hideTemples")}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {t("hideTemplesDesc")}
+              </p>
+            </div>
+            <Switch
+              id="temples-switch"
+              checked={hideTemples}
+              onCheckedChange={setHideTemples}
+              disabled={isLoading || bgError}
+            />
+          </div>
 
           {/* Realism switch */}
           <div className="flex items-center justify-between rounded-md border p-3">

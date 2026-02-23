@@ -1,11 +1,10 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { User, Palette, Star, ArrowLeft, Glasses, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AnalysisResult, FacialLandmarks } from "./PhotoUpload";
 import { findGlassesImage, glassesCatalog } from "./GlassesCatalog";
 import { useLanguage } from "@/contexts/LanguageContext";
 import GlassesTryOn from "./GlassesTryOn";
-import { prepareGlassesImage } from "@/lib/prepareGlassesImage";
 
 interface AnalysisResultsProps {
   analysis: AnalysisResult;
@@ -31,13 +30,6 @@ const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps)
     }
     return undefined;
   }, [analysis.facialLandmarks, analysis.eyePositions]);
-
-  // Pre-warm the cache for all glasses images in the background
-  useEffect(() => {
-    glassesCatalog.forEach((style) => {
-      prepareGlassesImage(style.image).catch(() => {/* ignore */});
-    });
-  }, []);
 
   const handleTryOn = (glassesImage: string) => {
     setSelectedGlasses(glassesImage);
@@ -135,14 +127,14 @@ const AnalysisResults = ({ analysis, userPhoto, onReset }: AnalysisResultsProps)
               <Button 
                 variant="cta" 
                 size="sm" 
-                className="mt-3 w-full animate-pulse-glow flex items-center justify-center gap-1"
+                className="mt-3 w-full animate-pulse-glow"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleTryOn(style.image);
                 }}
               >
-                <Eye className="w-4 h-4 shrink-0" />
-                <span>{t("tryOn")}</span>
+                <Eye className="w-4 h-4 mr-1" />
+                {t("tryOn")}
               </Button>
             </div>
           ))}

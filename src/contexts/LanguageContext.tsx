@@ -441,31 +441,6 @@ export const translations: Translations = {
     en: "We couldn't detect a clear face. Try another frontal photo.",
     es: "No detectamos un rostro claro. Prueba otra foto de frente.",
   },
-  autoAnalysisUnavailable: {
-    pt: "Análise automática indisponível. Use os controles para ajustar!",
-    en: "Auto analysis unavailable. Use the controls to adjust!",
-    es: "Análisis automático no disponible. ¡Usa los controles para ajustar!",
-  },
-  usingLocalDetection: {
-    pt: "Usando detecção local de rosto...",
-    en: "Using local face detection...",
-    es: "Usando detección local de rostro...",
-  },
-  compressingImage: {
-    pt: "Comprimindo imagem...",
-    en: "Compressing image...",
-    es: "Comprimiendo imagen...",
-  },
-  localAnalysisComplete: {
-    pt: "Análise local concluída!",
-    en: "Local analysis complete!",
-    es: "¡Análisis local completado!",
-  },
-  localAnalysisDesc: {
-    pt: "Usamos detecção local. Você pode experimentar óculos do catálogo.",
-    en: "We used local detection. You can try on glasses from the catalog.",
-    es: "Usamos detección local. Puedes probar gafas del catálogo.",
-  },
 };
 
 interface LanguageContextType {
