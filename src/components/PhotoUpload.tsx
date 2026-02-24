@@ -118,9 +118,10 @@ const PhotoUpload = ({ onAnalysisComplete }: PhotoUploadProps) => {
       });
 
       // If 402 (insufficient credits), fall back to local analysis
-      const is402 = error?.message?.includes("402") || data?.error?.includes("insuficientes") || data?.error?.includes("Insufficient");
+      const errorMsg = error?.message || data?.error || "";
+      const is402 = errorMsg.includes("402") || errorMsg.includes("insuficientes") || errorMsg.includes("Insufficient") || errorMsg.includes("créditos") || errorMsg.includes("credits");
       
-      if (is402) {
+      if (is402 || (error && String(error?.context?.status) === "402")) {
         console.warn("AI credits exhausted, falling back to local analysis");
         setUploadProgress(t("analyzingWithAI"));
         const localResult = await localFaceAnalysis(selectedImage, language as "pt" | "en" | "es");
