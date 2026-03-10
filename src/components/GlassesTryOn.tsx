@@ -92,7 +92,6 @@ const GlassesTryOn = ({
   const [scaleSlider, setScaleSlider] = useState(100);
   const [rotationSlider, setRotationSlider] = useState(0);
   const [opacitySlider, setOpacitySlider] = useState(92);
-  const [realisticBlend, setRealisticBlend] = useState(false);
   const [hideTemples, setHideTemples] = useState(true);
 
   const [isDragging, setIsDragging] = useState(false);
