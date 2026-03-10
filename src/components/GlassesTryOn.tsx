@@ -160,7 +160,7 @@ const GlassesTryOn = ({
     setScaleSlider(100);
     setRotationSlider(0);
     setOpacitySlider(92);
-    setRealisticBlend(true);
+    setRealisticBlend(false);
     setPreparedGlassesSrc(null);
     setIsPreparingGlasses(false);
     setIsDragging(false);
