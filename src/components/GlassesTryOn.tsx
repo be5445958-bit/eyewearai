@@ -92,7 +92,7 @@ const GlassesTryOn = ({
   const [scaleSlider, setScaleSlider] = useState(100);
   const [rotationSlider, setRotationSlider] = useState(0);
   const [opacitySlider, setOpacitySlider] = useState(92);
-  const [realisticBlend, setRealisticBlend] = useState(true);
+  const [realisticBlend, setRealisticBlend] = useState(false);
   const [hideTemples, setHideTemples] = useState(true);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -599,7 +599,7 @@ const GlassesTryOn = ({
                 transformOrigin: "center center",
                 touchAction: "none",
                 cursor: isDragging ? "grabbing" : "grab",
-                mixBlendMode: realisticBlend ? "multiply" : "normal",
+                mixBlendMode: "normal",
                 opacity: glassesLoaded ? computedOpacity : 0,
                 filter:
                   "drop-shadow(0 2px 6px hsl(var(--foreground) / 0.28))",
