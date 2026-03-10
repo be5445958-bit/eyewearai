@@ -92,7 +92,6 @@ const GlassesTryOn = ({
   const [scaleSlider, setScaleSlider] = useState(100);
   const [rotationSlider, setRotationSlider] = useState(0);
   const [opacitySlider, setOpacitySlider] = useState(92);
-  const [realisticBlend, setRealisticBlend] = useState(false);
   const [hideTemples, setHideTemples] = useState(true);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -160,7 +159,6 @@ const GlassesTryOn = ({
     setScaleSlider(100);
     setRotationSlider(0);
     setOpacitySlider(92);
-    setRealisticBlend(false);
     setPreparedGlassesSrc(null);
     setIsPreparingGlasses(false);
     setIsDragging(false);
@@ -599,7 +597,7 @@ const GlassesTryOn = ({
                 transformOrigin: "center center",
                 touchAction: "none",
                 cursor: isDragging ? "grabbing" : "grab",
-                mixBlendMode: realisticBlend ? "multiply" : "normal",
+                mixBlendMode: "normal",
                 opacity: glassesLoaded ? computedOpacity : 0,
                 filter:
                   "drop-shadow(0 2px 6px hsl(var(--foreground) / 0.28))",
@@ -640,9 +638,9 @@ const GlassesTryOn = ({
               {mediaPipe.status === "loading" ? (
                 <Loader2 className="h-3 w-3 animate-spin text-primary" />
               ) : mediaPipe.status === "detected" ? (
-                <ScanFace className="h-3 w-3 text-green-500" />
+                <ScanFace className="h-3 w-3 text-primary" />
               ) : (
-                <ScanFace className="h-3 w-3 text-yellow-500" />
+                <ScanFace className="h-3 w-3 text-muted-foreground" />
               )}
               <span>{mediaPipeStatusMsg}</span>
             </div>
@@ -715,23 +713,6 @@ const GlassesTryOn = ({
             />
           </div>
 
-          {/* Realism switch */}
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div className="space-y-0.5">
-              <Label htmlFor="realism-switch">
-                {t("realisticMode")}
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                {t("realisticModeDesc")}
-              </p>
-            </div>
-            <Switch
-              id="realism-switch"
-              checked={realisticBlend}
-              onCheckedChange={setRealisticBlend}
-              disabled={isLoading || bgError}
-            />
-          </div>
 
           <Button
             variant="outline"

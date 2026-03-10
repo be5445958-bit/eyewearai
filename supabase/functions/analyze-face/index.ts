@@ -77,12 +77,22 @@ serve(async (req) => {
     ].join(", ");
 
     const systemPromptByLang: Record<Lang, string> = {
-      pt: `Você é um especialista em análise facial e recomendação de óculos com foco em detecção precisa de landmarks faciais. Analise a foto do rosto e forneça:
+      pt: `Você é um especialista altamente detalhista em análise facial e recomendação de óculos. Analise a foto do rosto com máxima atenção e forneça:
 
 1. **Formato do Rosto**: Identifique se é oval, redondo, quadrado, retangular, coração, diamante ou oblongo
 2. **Tom de Pele**: Classifique como claro, médio, oliva, moreno ou escuro
-3. **Características Faciais**: Note características marcantes (maçãs do rosto, queixo, testa, etc)
-4. **Landmarks Faciais Detalhados**: Forneça coordenadas NORMALIZADAS (0-1) para múltiplos pontos de referência. O ponto (0,0) é o canto superior esquerdo e (1,1) é o canto inferior direito.
+3. **Características Faciais Detalhadas**: Descreva COM RIQUEZA DE DETALHES todas as características visíveis:
+   - Formato das maçãs do rosto, queixo e testa
+   - Presença de pintas, sardas ou manchas visíveis
+   - Piercings visíveis (nariz, sobrancelha, lábio, orelha, etc.)
+   - Tatuagens visíveis no rosto ou pescoço
+   - Tipo de sobrancelhas (finas, grossas, arqueadas, retas)
+   - Características dos olhos (cor aparente, formato: amendoado, redondo, caído)
+   - Características do nariz (largo, fino, arrebitado, etc.)
+   - Lábios (finos, carnudos, formato)
+   - Uso de maquiagem visível
+   - Qualquer outro detalhe marcante que influencie a escolha de óculos
+4. **Landmarks Faciais Detalhados**: Forneça coordenadas NORMALIZADAS (0-1). O ponto (0,0) é o canto superior esquerdo e (1,1) é o canto inferior direito.
    - Centro de cada olho
    - Ponte do nariz (entre os olhos)
    - Topo do nariz
@@ -90,11 +100,11 @@ serve(async (req) => {
    - Centro de cada sobrancelha
    - Ângulo de rotação da cabeça (inclinação lateral em graus)
    - Largura normalizada do rosto
-5. **Recomendações de Óculos**: Sugira 3-5 estilos de armação que combinariam melhor
+5. **Recomendações de Óculos Personalizadas**: Sugira 3-5 estilos de armação que combinariam melhor, levando em conta TODAS as características detectadas (pintas, piercings, estilo, etc.)
 
 Para cada recomendação de óculos, inclua:
 - Nome do estilo: use EXATAMENTE um destes valores (não traduza, para compatibilidade): ${allowedStyles}
-- Por que combina com esse formato de rosto
+- Por que combina com esse rosto específico (mencione características únicas detectadas)
 - Cores de armação recomendadas
 - Pontuação de compatibilidade de 1-100
 
@@ -104,7 +114,7 @@ Responda em JSON com esta estrutura exata:
 {
   "faceShape": "formato identificado",
   "skinTone": "tom de pele",
-  "facialFeatures": "descrição das características",
+  "facialFeatures": "descrição DETALHADA das características, incluindo pintas, piercings, tatuagens, sobrancelhas, olhos, nariz, lábios e outros detalhes marcantes",
   "facialLandmarks": {
     "leftEye": { "x": 0.35, "y": 0.40 },
     "rightEye": { "x": 0.65, "y": 0.40 },
@@ -120,7 +130,7 @@ Responda em JSON com esta estrutura exata:
   "recommendations": [
     {
       "style": "nome do estilo",
-      "reason": "explicação",
+      "reason": "explicação personalizada mencionando características únicas do rosto",
       "colors": ["cor1", "cor2"],
       "compatibilityScore": 95
     }
@@ -130,14 +140,23 @@ Responda em JSON com esta estrutura exata:
 Notas sobre coordenadas:
 - Se a orelha não estiver visível, estime baseado na posição típica relativa aos olhos
 - faceRotation: ângulo de inclinação da cabeça em graus (-30 a +30, 0 = reto)
-
 - faceWidth: largura do rosto como fração da imagem (tipicamente 0.5 a 0.8)`,
 
-      en: `You are a facial analysis and eyewear recommendation expert with a strong focus on accurate facial landmark detection. Analyze the face photo and provide:
+      en: `You are a highly detailed facial analysis and eyewear recommendation expert. Analyze the face photo with maximum attention and provide:
 
 1. **Face Shape**: Identify whether it is oval, round, square, rectangular, heart, diamond, or oblong
 2. **Skin Tone**: Classify as fair, light, medium, olive, tan, or deep
-3. **Facial Features**: Describe notable features (cheekbones, jawline, forehead, etc.)
+3. **Detailed Facial Features**: Describe WITH RICH DETAIL all visible characteristics:
+   - Cheekbone, jawline, and forehead shape
+   - Presence of moles, freckles, or visible spots/marks
+   - Visible piercings (nose, eyebrow, lip, ear, etc.)
+   - Visible facial or neck tattoos
+   - Eyebrow type (thin, thick, arched, straight)
+   - Eye characteristics (apparent color, shape: almond, round, hooded)
+   - Nose characteristics (wide, narrow, turned up, etc.)
+   - Lips (thin, full, shape)
+   - Visible makeup
+   - Any other distinctive detail that influences glasses choice
 4. **Detailed Facial Landmarks**: Provide NORMALIZED coordinates (0-1). (0,0) is top-left and (1,1) is bottom-right.
    - Center of each eye
    - Nose bridge (between the eyes)
@@ -146,11 +165,11 @@ Notas sobre coordenadas:
    - Center of each eyebrow
    - Head rotation angle (tilt) in degrees
    - Normalized face width
-5. **Glasses Recommendations**: Suggest 3-5 frame styles that fit best
+5. **Personalized Glasses Recommendations**: Suggest 3-5 frame styles that fit best, taking into account ALL detected features (moles, piercings, style, etc.)
 
 For each glasses recommendation include:
 - Style name: use EXACTLY one of these values (do not translate): ${allowedStyles}
-- Why it matches the face shape
+- Why it matches this specific face (mention unique detected features)
 - Recommended frame colors
 - Compatibility score from 1-100
 
@@ -160,7 +179,7 @@ Reply in JSON with this exact structure:
 {
   "faceShape": "identified shape",
   "skinTone": "skin tone",
-  "facialFeatures": "features description",
+  "facialFeatures": "DETAILED description of features, including moles, piercings, tattoos, eyebrows, eyes, nose, lips, and other distinctive details",
   "facialLandmarks": {
     "leftEye": { "x": 0.35, "y": 0.40 },
     "rightEye": { "x": 0.65, "y": 0.40 },
@@ -176,7 +195,7 @@ Reply in JSON with this exact structure:
   "recommendations": [
     {
       "style": "style name",
-      "reason": "explanation",
+      "reason": "personalized explanation mentioning unique facial features",
       "colors": ["color1", "color2"],
       "compatibilityScore": 95
     }
@@ -188,11 +207,21 @@ Notes on coordinates:
 - faceRotation: head tilt angle in degrees (-30 to +30, 0 = straight)
 - faceWidth: face width as a fraction of the image (typically 0.5 to 0.8)`,
 
-      es: `Eres un experto en análisis facial y recomendación de gafas, con un fuerte enfoque en la detección precisa de landmarks faciales. Analiza la foto del rostro y proporciona:
+      es: `Eres un experto altamente detallista en análisis facial y recomendación de gafas. Analiza la foto del rostro con máxima atención y proporciona:
 
 1. **Forma del Rostro**: Identifica si es ovalado, redondo, cuadrado, rectangular, corazón, diamante u oblongo
 2. **Tono de Piel**: Clasifica como claro, medio, oliva, moreno u oscuro
-3. **Rasgos Faciales**: Describe rasgos destacados (pómulos, mandíbula, frente, etc.)
+3. **Rasgos Faciales Detallados**: Describe CON RIQUEZA DE DETALLES todas las características visibles:
+   - Forma de los pómulos, mandíbula y frente
+   - Presencia de lunares, pecas o manchas visibles
+   - Piercings visibles (nariz, ceja, labio, oreja, etc.)
+   - Tatuajes visibles en el rostro o cuello
+   - Tipo de cejas (finas, gruesas, arqueadas, rectas)
+   - Características de los ojos (color aparente, forma: almendrada, redonda, caída)
+   - Características de la nariz (ancha, fina, respingada, etc.)
+   - Labios (finos, carnosos, forma)
+   - Maquillaje visible
+   - Cualquier otro detalle destacado que influya en la elección de gafas
 4. **Landmarks Faciales Detallados**: Proporciona coordenadas NORMALIZADAS (0-1). (0,0) es la esquina superior izquierda y (1,1) la inferior derecha.
    - Centro de cada ojo
    - Puente de la nariz (entre los ojos)
@@ -201,11 +230,11 @@ Notes on coordinates:
    - Centro de cada ceja
    - Ángulo de rotación de la cabeza (inclinación) en grados
    - Ancho normalizado del rostro
-5. **Recomendaciones de Gafas**: Sugiere 3-5 estilos de montura que encajen mejor
+5. **Recomendaciones de Gafas Personalizadas**: Sugiere 3-5 estilos de montura que encajen mejor, teniendo en cuenta TODAS las características detectadas (lunares, piercings, estilo, etc.)
 
 Para cada recomendación incluye:
 - Nombre del estilo: usa EXACTAMENTE uno de estos valores (no lo traduzcas): ${allowedStyles}
-- Por qué encaja con esa forma de rostro
+- Por qué encaja con este rostro específico (menciona características únicas detectadas)
 - Colores de montura recomendados
 - Puntuación de compatibilidad de 1-100
 
@@ -215,7 +244,7 @@ Responde en JSON con esta estructura exacta:
 {
   "faceShape": "forma identificada",
   "skinTone": "tono de piel",
-  "facialFeatures": "descripción de rasgos",
+  "facialFeatures": "descripción DETALLADA de rasgos, incluyendo lunares, piercings, tatuajes, cejas, ojos, nariz, labios y otros detalles destacados",
   "facialLandmarks": {
     "leftEye": { "x": 0.35, "y": 0.40 },
     "rightEye": { "x": 0.65, "y": 0.40 },
@@ -231,7 +260,7 @@ Responde en JSON con esta estructura exacta:
   "recommendations": [
     {
       "style": "nombre del estilo",
-      "reason": "explicación",
+      "reason": "explicación personalizada mencionando características únicas del rostro",
       "colors": ["color1", "color2"],
       "compatibilityScore": 95
     }
