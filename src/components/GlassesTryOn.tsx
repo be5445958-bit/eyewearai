@@ -713,23 +713,6 @@ const GlassesTryOn = ({
             />
           </div>
 
-          {/* Realism switch */}
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div className="space-y-0.5">
-              <Label htmlFor="realism-switch">
-                {t("realisticMode")}
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                {t("realisticModeDesc")}
-              </p>
-            </div>
-            <Switch
-              id="realism-switch"
-              checked={realisticBlend}
-              onCheckedChange={setRealisticBlend}
-              disabled={isLoading || bgError}
-            />
-          </div>
 
           <Button
             variant="outline"
