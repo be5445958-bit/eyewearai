@@ -207,14 +207,11 @@ export const prepareGlassesImage = async (
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
-  // 1) Background removal — remove near-white pixels AND checkerboard artifacts.
-  // Checkerboard = alternating ~204 / ~255 gray squares rendered when AI returns
-  // "transparent" as visible pixels.
-  // Strategy: fully remove any neutral-gray pixel (low chroma) above CHECKER_MIN.
-  // This covers the light square (~255) AND the dark square (~204) of the pattern.
-  const CHECKER_MIN = 100;    // lower threshold catches the darker checker squares
-  const CHECKER_MAX_DELTA = 35; // slightly wider spread to handle near-neutral tones
-
+  // 1) Background removal — remove near-white pixels only.
+  // Conservative approach: only remove clearly white/near-white product backgrounds.
+  // Do NOT remove checkerboard patterns — if the AI returned a transparent image,
+  // the browser canvas will have alpha=0 already. Removing neutral grays causes
+  // lens areas and face-visible regions to become transparent (checkerboard effect).
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
@@ -223,19 +220,10 @@ export const prepareGlassesImage = async (
     if (a === 0) continue;
 
     const minRGB = Math.min(r, g, b);
-    const maxRGB = Math.max(r, g, b);
-    const brightness = (r + g + b) / 3;
-    const delta = maxRGB - minRGB;
 
-    // Near-white product background (very bright, any chroma)
+    // Only remove clearly white/near-white product background pixels
     if (minRGB >= whiteThreshold) {
       const t = clamp((minRGB - whiteThreshold) / Math.max(1, softness), 0, 1);
-      data[i + 3] = Math.round(a * (1 - t));
-    }
-    // Checkerboard / neutral-gray pixels — fully erase above threshold
-    // Uses a steeper curve so pixels at brightness ~200+ become fully transparent
-    else if (brightness >= CHECKER_MIN && delta <= CHECKER_MAX_DELTA) {
-      const t = clamp((brightness - CHECKER_MIN) / 80, 0, 1); // steeper: full at ~180+
       data[i + 3] = Math.round(a * (1 - t));
     }
   }
