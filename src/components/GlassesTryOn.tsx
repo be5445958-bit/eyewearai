@@ -638,9 +638,9 @@ const GlassesTryOn = ({
               {mediaPipe.status === "loading" ? (
                 <Loader2 className="h-3 w-3 animate-spin text-primary" />
               ) : mediaPipe.status === "detected" ? (
-                <ScanFace className="h-3 w-3 text-green-500" />
+                <ScanFace className="h-3 w-3 text-primary" />
               ) : (
-                <ScanFace className="h-3 w-3 text-yellow-500" />
+                <ScanFace className="h-3 w-3 text-muted-foreground" />
               )}
               <span>{mediaPipeStatusMsg}</span>
             </div>
