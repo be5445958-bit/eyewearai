@@ -5,10 +5,12 @@ export interface PrepareGlassesImageOptions {
   useAI?: boolean;
   /** Remove temple arms. Default: true */
   removeTemples?: boolean;
-  /** Fallback: Pixels considered white-ish will become transparent. Default: 245 */
-  whiteThreshold?: number;
-  /** Soft fade range above the threshold. Default: 25 */
-  softness?: number;
+  /**
+   * Pixels with minRGB >= this threshold, AND reachable from image edges,
+   * will be treated as background and made transparent. Default: 180
+   * (catches white 255 AND checkerboard gray ~204)
+   */
+  lightThreshold?: number;
   /** Pixels with alpha <= cutoff are considered background for cropping. Default: 8 */
   alphaCutoff?: number;
   /** Extra padding around the cropped glasses (0-0.2). Default: 0.05 */
@@ -18,7 +20,6 @@ export interface PrepareGlassesImageOptions {
 }
 
 // In-memory caches to avoid repeating expensive work during a session.
-// (Avoid localStorage for large dataURLs; they can exceed quota on mobile.)
 const base64Cache = new Map<string, string>();
 const aiProcessedUrlCache = new Map<string, string>();
 const preparedDataUrlCache = new Map<string, string>();
@@ -61,12 +62,11 @@ const imageToBase64 = async (src: string): Promise<string> => {
   const cached = base64Cache.get(src);
   if (cached) return cached;
 
-  // If already a data URL, return as-is
   if (src.startsWith("data:")) {
     base64Cache.set(src, src);
     return src;
   }
-  
+
   const img = await loadImage(src);
   const canvas = document.createElement("canvas");
   canvas.width = img.naturalWidth || img.width;
@@ -87,7 +87,6 @@ const processWithAI = async (imageUrl: string): Promise<string | null> => {
     const cached = aiProcessedUrlCache.get(imageUrl);
     if (cached) return cached;
 
-    // Convert to base64 if it's a local asset
     let urlToSend = imageUrl;
     if (!imageUrl.startsWith("http") || imageUrl.includes("localhost")) {
       urlToSend = await imageToBase64(imageUrl);
@@ -115,14 +114,72 @@ const processWithAI = async (imageUrl: string): Promise<string | null> => {
 };
 
 /**
- * Fallback: Removes temple arms using simple cropping
+ * Flood-fill background removal starting from all image edges.
+ *
+ * Seeds from every border pixel that is "background-like" (either already
+ * transparent OR has minRGB >= lightThreshold), then propagates inward,
+ * making matching pixels transparent and stopping at dark pixels (the frame).
+ *
+ * Advantages over a plain threshold pass:
+ * - Only removes pixels reachable from the outside, so interior lens pixels
+ *   (even if light-colored) are preserved.
+ * - Catches white (255) AND checkerboard gray (~204) with the same threshold.
+ */
+const removeBackgroundFloodFill = (
+  data: Uint8ClampedArray,
+  w: number,
+  h: number,
+  lightThreshold: number
+): void => {
+  const visited = new Uint8Array(w * h);
+  // Use an array as a stack (pop = DFS — avoids recursion limits and is cache-friendly)
+  const stack: number[] = [];
+
+  const tryPush = (pixelIdx: number) => {
+    if (visited[pixelIdx]) return;
+    const pi = pixelIdx * 4;
+    const a = data[pi + 3];
+    // "Background-like": already transparent OR all channels above the light threshold
+    const isBackground =
+      a === 0 ||
+      (Math.min(data[pi], data[pi + 1], data[pi + 2]) >= lightThreshold);
+    if (!isBackground) return; // stop at dark/colored pixels (glasses frame)
+    visited[pixelIdx] = 1;
+    stack.push(pixelIdx);
+  };
+
+  // Seed: all four border edges
+  for (let x = 0; x < w; x++) {
+    tryPush(x);                  // top row
+    tryPush((h - 1) * w + x);   // bottom row
+  }
+  for (let y = 1; y < h - 1; y++) {
+    tryPush(y * w);              // left column
+    tryPush(y * w + w - 1);     // right column
+  }
+
+  while (stack.length > 0) {
+    const idx = stack.pop()!;
+    const pi = idx * 4;
+    data[pi + 3] = 0; // make transparent
+
+    const x = idx % w;
+    const y = Math.floor(idx / w);
+    if (x > 0)     tryPush(idx - 1);
+    if (x < w - 1) tryPush(idx + 1);
+    if (y > 0)     tryPush(idx - w);
+    if (y < h - 1) tryPush(idx + w);
+  }
+};
+
+/**
+ * Fallback: Removes temple arms using simple side-cropping
  */
 const removeTempleArmsFallback = (
   data: Uint8ClampedArray,
   w: number,
   h: number
 ): void => {
-  // AGGRESSIVE APPROACH: Cut off the outer portions where temples typically are
   const cutPercent = 0.20;
   const leftCut = Math.round(w * cutPercent);
   const rightCut = Math.round(w * (1 - cutPercent));
@@ -156,8 +213,12 @@ const removeTempleArmsFallback = (
 };
 
 /**
- * Removes typical white product-background and optionally uses AI to remove temple arms.
- * Returns a PNG dataURL.
+ * Removes the product background from a glasses image and optionally uses AI
+ * to remove temple arms. Returns a PNG dataURL with a transparent background.
+ *
+ * Background removal uses a flood-fill from image edges, which correctly
+ * handles both solid white and checkerboard (gray) backgrounds without
+ * accidentally making the lenses transparent.
  */
 export const prepareGlassesImage = async (
   src: string,
@@ -170,16 +231,13 @@ export const prepareGlassesImage = async (
   const {
     useAI = true,
     removeTemples = true,
-    whiteThreshold = 245,
-    softness = 25,
+    lightThreshold = 180,
     alphaCutoff = 8,
     paddingRatio = 0.05,
     maxSize = 1024,
   } = opts;
 
-  // Try AI processing first if enabled; even when AI succeeds, we still run the
-  // local cleanup pass (to guarantee true transparency and remove any baked-in
-  // checker/gray backgrounds some generators add).
+  // Try AI processing first if enabled
   let effectiveSrc = src;
   if (useAI && removeTemples) {
     const aiResult = await processWithAI(src);
@@ -195,42 +253,23 @@ export const prepareGlassesImage = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const anyImg = img as any;
   if (typeof anyImg.decode === "function") {
-    try {
-      await anyImg.decode();
-    } catch {
-      // ignore
-    }
+    try { await anyImg.decode(); } catch { /* ignore */ }
   }
 
   const { canvas, ctx } = drawResized(img, maxSize);
-
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
-
-  // 1) Background removal — remove near-white pixels only.
-  // Conservative approach: only remove clearly white/near-white product backgrounds.
-  // Do NOT remove checkerboard patterns — if the AI returned a transparent image,
-  // the browser canvas will have alpha=0 already. Removing neutral grays causes
-  // lens areas and face-visible regions to become transparent (checkerboard effect).
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const a = data[i + 3];
-    if (a === 0) continue;
-
-    const minRGB = Math.min(r, g, b);
-
-    // Only remove clearly white/near-white product background pixels
-    if (minRGB >= whiteThreshold) {
-      const t = clamp((minRGB - whiteThreshold) / Math.max(1, softness), 0, 1);
-      data[i + 3] = Math.round(a * (1 - t));
-    }
-  }
-
-  // 2) Remove temple arms (optional)
   const w = canvas.width;
   const h = canvas.height;
+
+  // 1) Background removal via flood-fill from edges.
+  //    Threshold 180 catches: white (255), checkerboard light gray (204),
+  //    and near-white product backgrounds — while preserving the glasses frame
+  //    (which is dark) and enclosed lens areas.
+  removeBackgroundFloodFill(data, w, h, lightThreshold);
+
+  // 2) Remove temple arms (optional fallback — CSS mask handles this too,
+  //    but this ensures the processed PNG is also clean)
   if (removeTemples) {
     removeTempleArmsFallback(data, w, h);
   }
@@ -238,15 +277,11 @@ export const prepareGlassesImage = async (
   ctx.putImageData(imageData, 0, 0);
 
   // 3) Trim transparent borders
-  let minX = w;
-  let minY = h;
-  let maxX = -1;
-  let maxY = -1;
+  let minX = w, minY = h, maxX = -1, maxY = -1;
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const alpha = data[idx + 3];
+      const alpha = data[(y * w + x) * 4 + 3];
       if (alpha > alphaCutoff) {
         if (x < minX) minX = x;
         if (y < minY) minY = y;
