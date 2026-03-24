@@ -597,7 +597,7 @@ const GlassesTryOn = ({
                 transformOrigin: "center center",
                 touchAction: "none",
                 cursor: isDragging ? "grabbing" : "grab",
-                mixBlendMode: "normal",
+                mixBlendMode: "multiply",
                 opacity: glassesLoaded ? computedOpacity : 0,
                 filter:
                   "drop-shadow(0 2px 6px hsl(var(--foreground) / 0.28))",
