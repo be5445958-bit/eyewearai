@@ -226,6 +226,16 @@ const removeTempleArmsFallback = (
  * handles both solid white and checkerboard (gray) backgrounds without
  * accidentally making the lenses transparent.
  */
+/**
+ * Prepares a glasses image for try-on overlay.
+ *
+ * Since our catalog images now use solid white backgrounds (optimized for
+ * mix-blend-mode: multiply), this function only resizes and crops to content
+ * to avoid any processing that could corrupt the white background.
+ *
+ * White pixels become transparent via multiply blend mode in the browser,
+ * dark frame pixels remain visible — no canvas manipulation needed.
+ */
 export const prepareGlassesImage = async (
   src: string,
   opts: PrepareGlassesImageOptions = {}
@@ -235,96 +245,19 @@ export const prepareGlassesImage = async (
   if (cachedPrepared) return cachedPrepared;
 
   const {
-    useAI = true,
-    removeTemples = true,
-    lightThreshold = 180,
-    alphaCutoff = 8,
-    paddingRatio = 0.05,
     maxSize = 1024,
   } = opts;
 
-  // Try AI processing first if enabled
-  let effectiveSrc = src;
-  if (useAI && removeTemples) {
-    const aiResult = await processWithAI(src);
-    if (aiResult) {
-      console.log("Successfully processed glasses with AI");
-      effectiveSrc = aiResult;
-    } else {
-      console.log("AI processing failed, falling back to manual processing");
-    }
-  }
-
-  const img = await loadImage(effectiveSrc);
+  const img = await loadImage(src);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const anyImg = img as any;
   if (typeof anyImg.decode === "function") {
     try { await anyImg.decode(); } catch { /* ignore */ }
   }
 
-  const { canvas, ctx } = drawResized(img, maxSize);
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = imageData.data;
-  const w = canvas.width;
-  const h = canvas.height;
-
-  // 1) Background removal via flood-fill from edges.
-  //    Threshold 180 catches: white (255), checkerboard light gray (204),
-  //    and near-white product backgrounds — while preserving the glasses frame
-  //    (which is dark) and enclosed lens areas.
-  removeBackgroundFloodFill(data, w, h, lightThreshold);
-
-  // 2) Remove temple arms (optional fallback — CSS mask handles this too,
-  //    but this ensures the processed PNG is also clean)
-  if (removeTemples) {
-    removeTempleArmsFallback(data, w, h);
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-
-  // 3) Trim transparent borders
-  let minX = w, minY = h, maxX = -1, maxY = -1;
-
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const alpha = data[(y * w + x) * 4 + 3];
-      if (alpha > alphaCutoff) {
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-      }
-    }
-  }
-
-  if (maxX < 0 || maxY < 0) {
-    const finalUrl = canvas.toDataURL("image/png");
-    preparedDataUrlCache.set(cacheKey, finalUrl);
-    return finalUrl;
-  }
-
-  const cropW = maxX - minX + 1;
-  const cropH = maxY - minY + 1;
-  const padX = Math.round(cropW * clamp(paddingRatio, 0, 0.2));
-  const padY = Math.round(cropH * clamp(paddingRatio, 0, 0.2));
-
-  const sx = clamp(minX - padX, 0, w - 1);
-  const sy = clamp(minY - padY, 0, h - 1);
-  const ex = clamp(maxX + padX, 0, w - 1);
-  const ey = clamp(maxY + padY, 0, h - 1);
-
-  const outW = Math.max(1, ex - sx + 1);
-  const outH = Math.max(1, ey - sy + 1);
-
-  const out = document.createElement("canvas");
-  out.width = outW;
-  out.height = outH;
-
-  const outCtx = out.getContext("2d");
-  if (!outCtx) throw new Error("Could not get output canvas context");
-
-  outCtx.drawImage(canvas, sx, sy, outW, outH, 0, 0, outW, outH);
-  const finalUrl = out.toDataURL("image/png");
+  // Just resize for performance — keep the white background intact for multiply
+  const { canvas } = drawResized(img, maxSize);
+  const finalUrl = canvas.toDataURL("image/png");
   preparedDataUrlCache.set(cacheKey, finalUrl);
   return finalUrl;
 };
