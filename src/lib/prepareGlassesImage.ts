@@ -117,13 +117,12 @@ const processWithAI = async (imageUrl: string): Promise<string | null> => {
  * Flood-fill background removal starting from all image edges.
  *
  * Seeds from every border pixel that is "background-like" (either already
- * transparent OR has minRGB >= lightThreshold), then propagates inward,
- * making matching pixels transparent and stopping at dark pixels (the frame).
+ * transparent OR has minRGB >= lightThreshold AND is neutral/gray — not tinted).
+ * Stops at dark pixels (frame) AND at pixels that are inside enclosed regions
+ * (lens areas), preserving them fully.
  *
- * Advantages over a plain threshold pass:
- * - Only removes pixels reachable from the outside, so interior lens pixels
- *   (even if light-colored) are preserved.
- * - Catches white (255) AND checkerboard gray (~204) with the same threshold.
+ * Key insight: product backgrounds are NEUTRAL (R≈G≈B), while tinted lenses
+ * may be slightly colored. We use a saturation check to avoid eating lenses.
  */
 const removeBackgroundFloodFill = (
   data: Uint8ClampedArray,
@@ -132,18 +131,25 @@ const removeBackgroundFloodFill = (
   lightThreshold: number
 ): void => {
   const visited = new Uint8Array(w * h);
-  // Use an array as a stack (pop = DFS — avoids recursion limits and is cache-friendly)
   const stack: number[] = [];
+
+  const isNeutralBackground = (pi: number): boolean => {
+    const a = data[pi + 3];
+    if (a === 0) return true; // already transparent
+    const r = data[pi], g = data[pi + 1], b = data[pi + 2];
+    const minC = Math.min(r, g, b);
+    const maxC = Math.max(r, g, b);
+    // Must be bright enough to be a product background
+    if (minC < lightThreshold) return false;
+    // Must be neutral (low saturation) — prevents removing tinted lens areas
+    const saturation = maxC > 0 ? (maxC - minC) / maxC : 0;
+    return saturation < 0.18;
+  };
 
   const tryPush = (pixelIdx: number) => {
     if (visited[pixelIdx]) return;
     const pi = pixelIdx * 4;
-    const a = data[pi + 3];
-    // "Background-like": already transparent OR all channels above the light threshold
-    const isBackground =
-      a === 0 ||
-      (Math.min(data[pi], data[pi + 1], data[pi + 2]) >= lightThreshold);
-    if (!isBackground) return; // stop at dark/colored pixels (glasses frame)
+    if (!isNeutralBackground(pi)) return;
     visited[pixelIdx] = 1;
     stack.push(pixelIdx);
   };
